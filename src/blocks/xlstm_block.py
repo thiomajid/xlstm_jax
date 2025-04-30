@@ -6,8 +6,9 @@ from typing import Any, Dict, Optional, Tuple
 
 import jax.numpy as jnp
 from flax import nnx
+from xlstm.blocks.xlstm_block import xLSTMBlock as TorchxLSTMBlock
 
-from moxe.xlstm.components.ln import LayerNorm
+from src.components.ln import LayerNorm
 
 from ..components.feedforward import FeedForwardConfig, create_feedforward
 from .mlstm.layer import mLSTMLayer, mLSTMLayerConfig
@@ -83,8 +84,9 @@ class xLSTMBlock(nnx.Module):
         )
 
         self.xlstm_norm = LayerNorm(
-            ndim=embedding_dim,
-            bias=False,
+            num_features=embedding_dim,
+            use_bias=False,
+            rngs=rngs,
             dtype=dtype,
         )
 
@@ -97,13 +99,16 @@ class xLSTMBlock(nnx.Module):
 
         if self.config.feedforward is not None:
             self.ffn_norm = LayerNorm(
-                ndim=self.config.feedforward.embedding_dim,
-                bias=False,
+                num_features=self.config.feedforward.embedding_dim,
+                use_bias=False,
+                rngs=rngs,
                 dtype=dtype,
             )
 
             self.ffn = create_feedforward(
-                config=self.config.feedforward, rngs=rngs, dtype=dtype
+                config=self.config.feedforward,
+                rngs=rngs,
+                dtype=dtype,
             )
         else:
             self.ffn_norm = None
@@ -171,3 +176,16 @@ class xLSTMBlock(nnx.Module):
             x = x + ffn_output
 
         return x, new_states
+
+    def load_from_torch(self, torch_block: TorchxLSTMBlock) -> None:
+        """Load parameters from a PyTorch xLSTM block.
+
+        Args:
+            torch_block: PyTorch xLSTM block to load parameters from
+        """
+
+        self.xlstm_norm.load_from_torch(torch_block.xlstm_norm)
+        self.xlstm.load_from_torch(torch_block.xlstm)
+        if self.ffn is not None:
+            self.ffn.load_from_torch(torch_block.ffn)
+            self.ffn_norm.load_from_torch(torch_block.ffn_norm)

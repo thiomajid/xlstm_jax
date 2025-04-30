@@ -94,3 +94,11 @@ class ParameterProxy:
     def __getattr__(self, name: str):
         # Forward attribute access to the underlying array
         return getattr(getattr(self.module, self.parameter_name), name)
+
+
+class Identity(nnx.Module):
+    def __init__(self):
+        pass
+
+    def __call__(self, x: jnp.ndarray):
+        return x

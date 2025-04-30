@@ -15,6 +15,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "torch>=2.7.0",
+    "xlstm>=2.0.3",
 ]
 
 # [tool.pyright]

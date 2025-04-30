@@ -9,6 +9,7 @@ import chex
 import jax
 import jax.numpy as jnp
 from flax import nnx
+from xlstm.components.conv import CausalConv1d as TorchCausalConv1d
 
 
 @dataclass
@@ -227,3 +228,20 @@ class CausalConv1d(nnx.Module):
             if self.config.causal_conv_bias and self.bias is not None:
                 no_weight_decay = (self.conv.bias,)
             return weight_decay, no_weight_decay
+
+    def load_from_torch(
+        self,
+        torch_module: TorchCausalConv1d,
+    ):
+        """Load weights from a PyTorch module."""
+        if self.config.kernel_size == 0:
+            return
+
+        # Load kernel
+        self.conv.kernel = nnx.Param(
+            jnp.array(torch_module.conv.weight.data.numpy()).transpose(2, 0, 1)
+        )
+
+        # Load bias if it exists
+        if self.config.causal_conv_bias:
+            self.conv.bias = nnx.Param(jnp.array(torch_module.bias.data.numpy()))

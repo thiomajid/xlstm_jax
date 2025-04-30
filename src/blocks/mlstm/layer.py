@@ -7,6 +7,7 @@ from typing import Dict, Optional, Tuple
 import jax
 import jax.numpy as jnp
 from flax import nnx
+from xlstm.blocks.mlstm.layer import mLSTMLayer as TorchmLSTMLayer
 
 from ...components.conv import CausalConv1d, CausalConv1dConfig
 from ...components.init import small_init_initializer, wang_initializer
@@ -140,7 +141,7 @@ class mLSTMLayer(nnx.Module):
 
         self.dropout = nnx.Dropout(rate=self.config.dropout, rngs=self.rngs)
 
-    @nnx.jit
+    # @nnx.jit
     def __call__(self, x: jnp.ndarray):
         """Forward pass for processing a full sequence.
 
@@ -267,3 +268,35 @@ class mLSTMLayer(nnx.Module):
         _init_qkv_proj(self.v_proj)
 
         self.mlstm_cell.reset_parameters()
+
+    def load_from_torch(self, layer: TorchmLSTMLayer):
+        """Load parameters from a PyTorch mLSTMLayer."""
+
+        # proj_up
+        self.proj_up.kernel = nnx.Param(jnp.array(layer.proj_up.weight.data.numpy()))
+        if self.proj_up.bias is not None:
+            self.proj_up.bias = nnx.Param(jnp.array(layer.proj_up.bias.data.numpy()))
+
+        # proj_down
+        self.proj_down.kernel = nnx.Param(
+            jnp.array(layer.proj_down.weight.data.numpy())
+        )
+
+        if self.proj_down.bias is not None:
+            self.proj_down.bias = nnx.Param(
+                jnp.array(layer.proj_down.bias.data.numpy())
+            )
+
+        # learnable_skip
+        self.learnable_skip = nnx.Param(jnp.array(layer.learnable_skip.data.numpy()))
+
+        # QKV projections
+        self.q_proj.load_from_torch(layer.q_proj)
+        self.k_proj.load_from_torch(layer.k_proj)
+        self.v_proj.load_from_torch(layer.v_proj)
+
+        # Convolutional layer
+        self.conv1d.load_from_torch(layer.conv1d)
+
+        # mLSTM cell
+        self.mlstm_cell.load_from_torch(layer.mlstm_cell)

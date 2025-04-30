@@ -7,6 +7,9 @@ from dataclasses import dataclass
 import jax
 import jax.numpy as jnp
 from flax import nnx
+from xlstm.components.linear_headwise import (
+    LinearHeadwiseExpand as TorchLinearHeadwiseExpand,
+)
 
 
 @dataclass
@@ -152,3 +155,11 @@ class LinearHeadwiseExpand(nnx.Module):
             f"trainable_weight={self.config.trainable_weight}, "
             f"trainable_bias={self.config.trainable_bias})"
         )
+
+    def load_from_torch(self, torch_linear: TorchLinearHeadwiseExpand) -> None:
+        """Load weights from a PyTorch LinearHeadwiseExpand module."""
+        # Load weights and biases from the PyTorch model
+        self.weight.value = nnx.Param(jnp.array(torch_linear.weight.data.numpy()))
+
+        if self.bias is not None:
+            self.bias.value = nnx.Param(jnp.array(torch_linear.bias.data.numpy()))

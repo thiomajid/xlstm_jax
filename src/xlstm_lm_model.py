@@ -6,8 +6,9 @@ from typing import Any, Dict, Optional, Tuple
 
 import jax.numpy as jnp
 from flax import nnx
+from xlstm import xLSTMLMModel as TorchxLSTMLMModel
 
-from moxe.utils.modules import Identity
+from src.components.util import Identity
 
 from .components.init import small_init_initializer
 from .utils import WeightDecayOptimGroupMixin
@@ -124,6 +125,35 @@ class xLSTMLMModel(WeightDecayOptimGroupMixin, nnx.Module):
             logits = self.lm_head(hidden_states)
 
         return logits
+
+    def load_from_torch(self, torch_model: TorchxLSTMLMModel):
+        """Load weights from a PyTorch xLSTM model.
+
+        Args:
+            torch_model: PyTorch xLSTM model to load weights from
+        """
+        # embedding layer
+        self.token_embedding.embedding = nnx.Param(
+            jnp.array(torch_model.token_embedding.weight.data.numpy())
+        )
+
+        self.xlstm_block_stack.load_from_torch(torch_model.xlstm_block_stack)
+
+        if not self.config.tie_weights:
+            # lm_head layer
+            self.lm_head.kernel = nnx.Param(
+                jnp.array(torch_model.lm_head.weight.data.numpy())
+            )
+
+            if torch_model.lm_head.bias is not None:
+                self.lm_head.bias = nnx.Param(
+                    jnp.array(torch_model.lm_head.bias.data.numpy())
+                )
+        else:
+            # shared weight layer
+            self.shared_weight = nnx.Param(
+                jnp.array(torch_model.lm_head.weight.data.numpy())
+            )
 
     def step(
         self,

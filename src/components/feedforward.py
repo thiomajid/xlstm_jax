@@ -7,6 +7,7 @@ from typing import Callable, Literal
 import jax
 import jax.numpy as jnp
 from flax import nnx
+from xlstm.components.feedforward import GatedFeedForward as TorchGatedFeedForward
 
 from ..utils import UpProjConfigMixin
 from .init import small_init_initializer, wang_initializer
@@ -138,10 +139,25 @@ class GatedFeedForward(nnx.Module):
                 dtype=self.proj_down.bias.dtype,
             )
 
+    def load_from_torch(self, torch_ff: TorchGatedFeedForward) -> None:
+        """Load weights from a PyTorch GatedFeedForward module."""
+        # Load weights and biases from the PyTorch model
+        self.proj_up.kernel = nnx.Param(jnp.array(torch_ff.proj_up.weight.data.numpy()))
 
-def create_feedforward(
-    config: FeedForwardConfig, rngs: nnx.Rngs, dtype=jnp.float32
-) -> nnx.Module:
+        if self.proj_up.bias is not None:
+            self.proj_up.bias = nnx.Param(jnp.array(torch_ff.proj_up.bias.data.numpy()))
+
+        self.proj_down.kernel = nnx.Param(
+            jnp.array(torch_ff.proj_down.weight.data.numpy())
+        )
+
+        if self.proj_down.bias is not None:
+            self.proj_down.bias = nnx.Param(
+                jnp.array(torch_ff.proj_down.bias.data.numpy())
+            )
+
+
+def create_feedforward(config: FeedForwardConfig, rngs: nnx.Rngs, dtype=jnp.float32):
     """Factory function to create feedforward modules based on config."""
     if config.ff_type == "ffn_gated":
         return GatedFeedForward(config, rngs=rngs, dtype=dtype)

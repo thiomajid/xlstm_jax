@@ -2,88 +2,147 @@
 # Maximilian Beck, Korbinian Pöppel
 # Converted to JAX/Flax by Abdoul Majid O. Thiombiano
 
-from typing import Optional
+import typing as tp
 
 import chex
 import jax
 import jax.numpy as jnp
 from flax import nnx
+from flax.nnx.nn import initializers
+from flax.nnx.nn.normalization import _compute_stats, _normalize
+from flax.typing import Axes, Dtype, Initializer
+from xlstm.components.ln import LayerNorm as TorchLayerNorm
 
 
 class LayerNorm(nnx.Module):
-    """LayerNorm but with an optional bias."""
+    """LayerNorm but with a residual_scale proxy"""
 
     def __init__(
         self,
-        ndim: int = -1,
-        weight: bool = True,
-        bias: bool = False,
-        eps: float = 1e-5,
-        residual_weight: bool = True,
+        num_features: int = -1,
+        epsilon: float = 1e-6,
+        param_dtype: Dtype = jnp.float32,
+        use_bias: bool = True,
+        use_scale: bool = True,
+        bias_init: Initializer = initializers.zeros_init(),
+        scale_init: Initializer = initializers.ones_init(),
+        reduction_axes: Axes = -1,
+        feature_axes: Axes = -1,
+        axis_name: tp.Optional[str] = None,
+        axis_index_groups: tp.Any = None,
+        use_fast_variance: bool = True,
+        residual_scale: bool = True,
         *,
         rngs: nnx.Rngs,
         dtype=jnp.float32,
     ):
-        self.ndim = ndim
-        self.eps = eps
-        self.rngs = rngs
-        self.residual_weight = residual_weight
+        feature_shape = (num_features,)
 
-        self.weight = nnx.Param(jnp.zeros(ndim, dtype=dtype)) if weight else None
-        self.bias = nnx.Param(jnp.zeros(ndim, dtype=dtype)) if bias else None
+        self.scale: nnx.Param[jax.Array] | None
+        if use_scale:
+            key = rngs.params()
+            self.scale = nnx.Param(scale_init(key, feature_shape, param_dtype))
+        else:
+            self.scale = None
 
-        self.reset_parameters()
+        self.bias: nnx.Param[jax.Array] | None
+        if use_bias:
+            key = rngs.params()
+            self.bias = nnx.Param(bias_init(key, feature_shape, param_dtype))
+        else:
+            self.bias = None
+
+        self.num_features = num_features
+        self.epsilon = epsilon
+        self.dtype = dtype
+        self.param_dtype = param_dtype
+        self.use_bias = use_bias
+        self.use_scale = use_scale
+        self.bias_init = bias_init
+        self.scale_init = scale_init
+        self.reduction_axes = reduction_axes
+        self.feature_axes = feature_axes
+        self.axis_name = axis_name
+        self.axis_index_groups = axis_index_groups
+        self.use_fast_variance = use_fast_variance
+        self.residual_scale = residual_scale
 
     @property
-    def weight_proxy(self) -> Optional[jnp.ndarray]:
-        if self.weight is None:
+    def scale_proxy(self) -> tp.Optional[jnp.ndarray]:
+        if self.scale is None:
             return None
-        if self.residual_weight:
-            return 1.0 + self.weight
+        if self.residual_scale:
+            return 1.0 + self.scale
         else:
-            return self.weight
+            return self.scale
 
-    def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
-        mean = jnp.mean(x, axis=-1, keepdims=True)
-        var = jnp.var(x, axis=-1, keepdims=True)
-        normed = (x - mean) / jnp.sqrt(var + self.eps)
+    def __call__(
+        self,
+        x: jnp.ndarray,
+        *,
+        mask: tp.Optional[jax.Array] = None,
+    ) -> jnp.ndarray:
+        """Applies layer normalization on the input.
 
-        # if self.weight_proxy is not None:
-        #     normed = normed * jnp.reshape(
-        #         self.weight_proxy, (1,) * (x.ndim - 1) + (-1,)
-        #     )
+        Args:
+        x: the inputs
 
-        normed = jax.lax.cond(
-            self.weight_proxy is not None,
-            lambda x: x * jnp.reshape(self.weight_proxy, (1,) * (x.ndim - 1) + (-1,)),
-            lambda x: x,
-            normed,
+        Returns:
+        Normalized inputs (the same shape as inputs).
+        """
+        mean, var = _compute_stats(
+            x,
+            self.reduction_axes,
+            self.dtype,
+            self.axis_name,
+            self.axis_index_groups,
+            use_fast_variance=self.use_fast_variance,
+            mask=mask,
         )
 
-        # if self.bias is not None:
-        #     normed = normed + jnp.reshape(self.bias, (1,) * (x.ndim - 1) + (-1,))
-
-        normed = jax.lax.cond(
-            self.bias is not None,
-            lambda x: x + jnp.reshape(self.bias, (1,) * (x.ndim - 1) + (-1,)),
-            lambda x: x,
-            normed,
+        return _normalize(
+            x,
+            mean,
+            var,
+            self.scale_proxy if self.scale else None,
+            self.bias.value if self.bias else None,
+            self.reduction_axes,
+            self.feature_axes,
+            self.dtype,
+            self.epsilon,
         )
-
-        return normed
 
     def reset_parameters(self):
-        if self.weight is not None:
-            if self.residual_weight:
-                self.weight.value = jnp.zeros_like(self.weight)
+        if self.scale is not None:
+            key = self.rngs.params()
+            if self.residual_scale:
+                self.scale = nnx.Param(
+                    jax.nn.initializers.zeros(
+                        key, self.scale.shape, dtype=self.scale.dtype
+                    )
+                )
             else:
-                self.weight = jnp.ones_like(self.weight)
+                self.scale = nnx.Param(
+                    self.scale(key, self.scale.shape, dtype=self.scale.dtype)
+                )
 
         if self.bias is not None:
-            self.bias.value = jnp.zeros_like(self.bias)
+            self.bias = nnx.Param(
+                self.bias_init(
+                    self.rngs.params(), self.bias.shape, dtype=self.bias.dtype
+                )
+            )
+
+    def load_from_torch(self, torch_ln: TorchLayerNorm) -> None:
+        """Load weights from a PyTorch LayerNorm module."""
+        if self.scale is not None:
+            self.scale.value = nnx.Param(jnp.array(torch_ln.weight.data.numpy()))
+
+        if self.bias is not None:
+            self.bias.value = nnx.Param(jnp.array(torch_ln.bias.data.numpy()))
 
 
-class MultiHeadLayerNorm(LayerNorm):
+class MultiHeadLayerNorm(nnx.Module):
     """Applies a custom group normalization.
 
     Args:
@@ -121,14 +180,14 @@ class MultiHeadLayerNorm(LayerNorm):
         normed = normed.reshape(B * S, NH * DH)
 
         # Apply weight and bias if available
-        # if self.weight_proxy is not None:
+        # if self.scale_proxy is not None:
         #     # For group norm, we need to repeat the parameters for each group
-        #     weight = jnp.repeat(self.weight_proxy[:DH], NH)
+        #     weight = jnp.repeat(self.scale_proxy[:DH], NH)
         #     x = x * weight
 
         normed = jax.lax.cond(
-            self.weight_proxy is not None,
-            lambda x: x * jnp.repeat(self.weight_proxy[:DH], NH),
+            self.scale_proxy is not None,
+            lambda x: x * jnp.repeat(self.scale_proxy[:DH], NH),
             lambda x: x,
             normed,
         )
