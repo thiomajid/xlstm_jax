@@ -1,0 +1,23 @@
+[project]
+name = "xlstm-jax"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "chex>=0.1.89",
+    "einops>=0.8.1",
+    "flax>=0.10.6",
+    "jax>=0.6.0",
+    "jaxtyping>=0.3.2",
+]
+
+[dependency-groups]
+dev = [
+    "torch>=2.7.0",
+]
+
+# [tool.pyright]
+# exclude = ["torch_xlstm/**"]
+# reportMissingImports = false
+# reportMissingTypeStubs = false
