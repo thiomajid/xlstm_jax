@@ -123,13 +123,9 @@ class xLSTMBlock(nnx.Module):
         Returns:
             Output tensor of shape (B, S, D)
         """
-        print(f"Pre block norm shape: {x.shape}")
-
         x = x + self.xlstm(self.xlstm_norm(x))
-        print(f"Post block : {x.shape}")
         if self.ffn is not None:
             x = x + self.ffn(self.ffn_norm(x))
-        print(f"Post ffn : {x.shape}")
 
         # x = lax.cond(
         #     self.ffn is not None,

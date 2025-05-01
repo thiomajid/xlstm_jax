@@ -36,9 +36,9 @@ from src import (
 def create_jax_model():
     cfg = xLSTMLMModelConfig(
         vocab_size=128,
-        context_length=16,
+        context_length=128,
         embedding_dim=32,
-        num_blocks=1,
+        num_blocks=2,
         slstm_at=[0],
         mlstm_block=mLSTMBlockConfig(
             mlstm=mLSTMLayerConfig(
@@ -66,9 +66,9 @@ def create_jax_model():
 def create_torch_model():
     torch_cfg = TorchxLSTMLMModelConfig(
         vocab_size=128,
-        context_length=16,
+        context_length=128,
         embedding_dim=32,
-        num_blocks=1,
+        num_blocks=2,
         slstm_at=[0],
         mlstm_block=TorchmLSTMBlockConfig(
             mlstm=TorchmLSTMLayerConfig(

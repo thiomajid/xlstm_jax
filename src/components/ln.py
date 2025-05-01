@@ -21,7 +21,7 @@ class LayerNorm(nnx.Module):
     def __init__(
         self,
         num_features: int = -1,
-        epsilon: float = 1e-6,
+        epsilon: float = 1e-5,
         param_dtype: Dtype = jnp.float32,
         use_bias: bool = True,
         use_scale: bool = True,
@@ -163,7 +163,7 @@ class MultiHeadLayerNorm(nnx.Module):
         num_features: int,
         residual_scale: bool = True,
         *,
-        epsilon: float = 1e-6,
+        epsilon: float = 1e-5,
         dtype: tp.Optional[Dtype] = None,
         param_dtype: Dtype = jnp.float32,
         use_bias: bool = False,

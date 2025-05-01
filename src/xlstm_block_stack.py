@@ -162,8 +162,6 @@ class xLSTMBlockStack(nnx.Module):
             Processed output tensor of shape [B, S, D]
         """
 
-        print(f"Before blocks: {x.shape}")
-
         for block in self.blocks:
             x = block(x)
 
