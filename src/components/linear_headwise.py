@@ -161,7 +161,7 @@ class LinearHeadwiseExpand(nnx.Module):
     def load_from_torch(self, torch_linear: TorchLinearHeadwiseExpand) -> None:
         """Load weights from a PyTorch LinearHeadwiseExpand module."""
         # Load weights and biases from the PyTorch model
-        self.kernel.value = nnx.Param(jnp.array(torch_linear.weight.data.numpy()))
+        self.kernel = nnx.Param(jnp.array(torch_linear.weight.data.numpy()))
 
         if self.bias is not None:
-            self.bias.value = nnx.Param(jnp.array(torch_linear.bias.data.numpy()))
+            self.bias = nnx.Param(jnp.array(torch_linear.bias.data.numpy()))

@@ -150,16 +150,22 @@ class GatedFeedForward(nnx.Module):
     def load_from_torch(self, torch_ff: TorchGatedFeedForward) -> None:
         """Load weights from a PyTorch GatedFeedForward module."""
         # Load weights and biases from the PyTorch model
-        self.proj_up.kernel = nnx.Param(jnp.array(torch_ff.proj_up.weight.data.numpy()))
+        # Transpose PyTorch weights (out, in) -> Flax kernel (in, out)
+        self.proj_up.kernel = nnx.Param(
+            jnp.array(torch_ff.proj_up.weight.data.numpy()).T
+        )
 
         if self.proj_up.bias is not None:
+            # Bias vectors (out,) do not need transpose
             self.proj_up.bias = nnx.Param(jnp.array(torch_ff.proj_up.bias.data.numpy()))
 
+        # Transpose PyTorch weights (out, in) -> Flax kernel (in, out)
         self.proj_down.kernel = nnx.Param(
-            jnp.array(torch_ff.proj_down.weight.data.numpy())
+            jnp.array(torch_ff.proj_down.weight.data.numpy()).T
         )
 
         if self.proj_down.bias is not None:
+            # Bias vectors (out,) do not need transpose
             self.proj_down.bias = nnx.Param(
                 jnp.array(torch_ff.proj_down.bias.data.numpy())
             )

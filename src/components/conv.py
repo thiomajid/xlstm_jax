@@ -238,9 +238,9 @@ class CausalConv1d(nnx.Module):
 
         # Load kernel
         self.conv.kernel = nnx.Param(
-            jnp.array(torch_module.conv.weight.data.numpy()).transpose(2, 0, 1)
+            jnp.array(torch_module.conv.weight.data.numpy()).transpose(2, 1, 0)
         )
 
         # Load bias if it exists
         if self.config.causal_conv_bias:
-            self.conv.bias = nnx.Param(jnp.array(torch_module.bias.data.numpy()))
+            self.conv.bias = nnx.Param(jnp.array(torch_module.conv.bias.data.numpy()))

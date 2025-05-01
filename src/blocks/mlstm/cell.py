@@ -249,11 +249,11 @@ class mLSTMCell(nnx.Module):
     def load_from_torch(self, cell: TorchmLSTMCell):
         """Load weights from a PyTorch mLSTM cell."""
         # Load weights and biases from the PyTorch model
-        self.igate.kernel.value = nnx.Param(jnp.array(cell.igate.weight.data.numpy()))
-        self.igate.bias.value = nnx.Param(jnp.array(cell.igate.bias.data.numpy()))
+        self.igate.kernel = nnx.Param(jnp.array(cell.igate.weight.data.numpy()))
+        self.igate.bias = nnx.Param(jnp.array(cell.igate.bias.data.numpy()))
 
-        self.fgate.kernel.value = nnx.Param(jnp.array(cell.fgate.weight.data.numpy()))
-        self.fgate.bias.value = nnx.Param(jnp.array(cell.fgate.bias.data.numpy()))
+        self.fgate.kernel = nnx.Param(jnp.array(cell.fgate.weight.data.numpy()))
+        self.fgate.bias = nnx.Param(jnp.array(cell.fgate.bias.data.numpy()))
 
         self.outnorm.load_from_torch(cell.outnorm)
 

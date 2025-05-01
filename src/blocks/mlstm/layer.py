@@ -230,37 +230,47 @@ class mLSTMLayer(nnx.Module):
         """Reset parameters of the layer."""
         # init inproj
         small_init_fn = small_init_initializer(dim=self.config.embedding_dim)
-        self.proj_up.kernel.value = small_init_fn(
-            self.rngs.params(), self.proj_up.kernel.shape, self.dtype
+        self.proj_up.kernel = nnx.Param(
+            small_init_fn(self.rngs.params(), self.proj_up.kernel.shape, self.dtype)
         )
 
         if self.proj_up.bias is not None:
-            self.proj_up.bias.value = nnx.initializers.zeros(
-                self.rngs.params(), self.proj_up.bias.shape, self.dtype
+            self.proj_up.bias = nnx.Param(
+                nnx.initializers.zeros(
+                    self.rngs.params(), self.proj_up.bias.shape, self.dtype
+                )
             )
 
         wang_init_fn = wang_initializer(
             dim=self.config.embedding_dim, num_blocks=self.config._num_blocks
         )
-        self.proj_down.kernel.value = wang_init_fn(
-            self.rngs.params(), self.proj_down.kernel.shape, self.dtype
+        self.proj_down.kernel = nnx.Param(
+            wang_init_fn(self.rngs.params(), self.proj_down.kernel.shape, self.dtype)
         )
+
         if self.proj_up.bias is not None:
-            self.proj_down.bias.value = nnx.initializers.zeros(
-                self.rngs.params(), self.proj_down.bias.shape, self.dtype
+            self.proj_down.bias = nnx.Param(
+                nnx.initializers.zeros(
+                    self.rngs.params(), self.proj_down.bias.shape, self.dtype
+                )
             )
 
-        self.learnable_skip.value = nnx.initializers.ones(
-            self.rngs.params(), self.learnable_skip.shape, self.dtype
+        self.learnable_skip = nnx.Param(
+            nnx.initializers.ones(
+                self.rngs.params(), self.learnable_skip.shape, self.dtype
+            )
         )
 
         def _init_qkv_proj(qkv_proj: LinearHeadwiseExpand):
-            qkv_proj.kernel.value = small_init_fn(
-                self.rngs.params(), qkv_proj.kernel.shape, self.dtype
+            qkv_proj.kernel = nnx.Param(
+                small_init_fn(self.rngs.params(), qkv_proj.kernel.shape, self.dtype)
             )
+
             if qkv_proj.bias is not None:
-                qkv_proj.bias.value = nnx.initializers.zeros(
-                    self.rngs.params(), qkv_proj.bias.shape, self.dtype
+                qkv_proj.bias = nnx.Param(
+                    nnx.initializers.zeros(
+                        self.rngs.params(), qkv_proj.bias.shape, self.dtype
+                    )
                 )
 
         _init_qkv_proj(self.q_proj)
