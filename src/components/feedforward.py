@@ -106,10 +106,12 @@ class GatedFeedForward(nnx.Module):
         # Initialize weights using small init for proj_up
         small_init = small_init_initializer(dim=self.config.embedding_dim)
 
-        self.proj_up.kernel = small_init(
-            key=self.rngs.params(),
-            shape=self.proj_up.kernel.shape,
-            dtype=self.proj_up.kernel.dtype,
+        self.proj_up.kernel = nnx.Param(
+            small_init(
+                key=self.rngs.params(),
+                shape=self.proj_up.kernel.shape,
+                dtype=self.proj_up.kernel.dtype,
+            )
         )
 
         # Initialize weights using Wang init for proj_down
@@ -118,25 +120,31 @@ class GatedFeedForward(nnx.Module):
             num_blocks=self.config._num_blocks,
         )
 
-        self.proj_down.kernel = wang_init(
-            key=self.rngs.params(),
-            shape=self.proj_down.kernel.shape,
-            dtype=self.proj_down.kernel.dtype,
+        self.proj_down.kernel = nnx.Param(
+            wang_init(
+                key=self.rngs.params(),
+                shape=self.proj_down.kernel.shape,
+                dtype=self.proj_down.kernel.dtype,
+            )
         )
 
         # Initialize biases to zero
         if self.proj_up.bias is not None:
-            self.proj_up.bias = jax.nn.initializers.zeros(
-                key=self.rngs.params(),
-                shape=self.proj_up.bias.shape,
-                dtype=self.proj_up.bias.dtype,
+            self.proj_up.bias = nnx.Param(
+                jax.nn.initializers.zeros(
+                    key=self.rngs.params(),
+                    shape=self.proj_up.bias.shape,
+                    dtype=self.proj_up.bias.dtype,
+                )
             )
 
         if self.proj_down.bias is not None:
-            self.proj_down.bias = jax.nn.initializers.zeros(
-                key=self.rngs.params(),
-                shape=self.proj_down.bias.shape,
-                dtype=self.proj_down.bias.dtype,
+            self.proj_down.bias = nnx.Param(
+                jax.nn.initializers.zeros(
+                    key=self.rngs.params(),
+                    shape=self.proj_down.bias.shape,
+                    dtype=self.proj_down.bias.dtype,
+                )
             )
 
     def load_from_torch(self, torch_ff: TorchGatedFeedForward) -> None:

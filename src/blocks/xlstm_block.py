@@ -189,3 +189,11 @@ class xLSTMBlock(nnx.Module):
         if self.ffn is not None:
             self.ffn.load_from_torch(torch_block.ffn)
             self.ffn_norm.load_from_torch(torch_block.ffn_norm)
+
+    def reset_parameters(self) -> None:
+        """Reset parameters of the xLSTM block."""
+        self.xlstm_norm.reset_parameters()
+        self.xlstm.reset_parameters()
+        if self.ffn is not None:
+            self.ffn.reset_parameters()
+            self.ffn_norm.reset_parameters()

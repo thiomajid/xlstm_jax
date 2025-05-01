@@ -342,6 +342,75 @@ class sLSTMCellBase(nnx.Module):
 
         return output, state
 
+    def reset_parameters(self):
+        """Resets this layer's parameters to their initial values."""
+        # Initialize recurrent kernel parameters
+        rng = self.rngs.params()
+        head_dim = self.config.head_dim
+
+        # Initialize recurrent kernel weights
+        if self.config.recurrent_weight_init == "zeros":
+            # Zero initialization for recurrent weights
+            self._recurrent_kernel_ = self._recurrent_kernel_.at[:].set(
+                jnp.zeros_like(self._recurrent_kernel_)
+            )
+        elif self.config.recurrent_weight_init == "standard":
+            # Standard uniform initialization with scaling
+            scale = 1.0 / jnp.sqrt(self.config.hidden_size)
+            for h in range(self.config.num_heads):
+                for i in range(self.config.num_gates):
+                    key = jax.random.fold_in(rng, h * self.config.num_gates + i)
+                    values = jax.random.uniform(
+                        key, shape=(head_dim, head_dim), minval=-scale, maxval=scale
+                    )
+                    self._recurrent_kernel_ = self._recurrent_kernel_.at[
+                        h, :, i, :
+                    ].set(values)
+
+        # Initialize bias parameters
+        for h in range(self.config.num_heads):
+            for i, gate in enumerate(["i", "f", "z", "o"]):
+                if self.config.bias_init == "powerlaw_blockdependent":
+                    if gate == "f":
+                        # Special initialization for forget gates
+                        ratio_0_to_1 = (
+                            self.config._block_idx / (self.config._num_blocks - 1)
+                            if self.config._num_blocks > 1
+                            else 0.0
+                        )
+
+                        positions = jnp.arange(head_dim) / (head_dim - 1)
+                        power = 0.3 + 1.3 * ratio_0_to_1
+                        init_values = -(-5.0 + 12.0 * positions**power)
+                        self._bias_ = self._bias_.at[h, i, :].set(init_values)
+                    else:
+                        # Zero initialization for other gates
+                        self._bias_ = self._bias_.at[h, i, :].set(jnp.zeros(head_dim))
+                elif self.config.bias_init == "small_init":
+                    if gate == "f":
+                        # Linear spacing for forget gate bias
+                        init_values = jnp.linspace(3.0, 6.0, head_dim)
+                        self._bias_ = self._bias_.at[h, i, :].set(init_values)
+                    else:
+                        # Zero initialization for other gates
+                        self._bias_ = self._bias_.at[h, i, :].set(jnp.zeros(head_dim))
+                elif self.config.bias_init == "zeros":
+                    # Zero initialization for all gates
+                    self._bias_ = self._bias_.at[h, i, :].set(jnp.zeros(head_dim))
+                elif self.config.bias_init == "standard":
+                    # Standard uniform initialization with scaling
+                    scale = 1.0 / jnp.sqrt(self.config.hidden_size)
+                    key = jax.random.fold_in(
+                        rng,
+                        h * self.config.num_gates
+                        + i
+                        + self.config.num_heads * self.config.num_gates,
+                    )
+                    values = jax.random.uniform(
+                        key, shape=(head_dim,), minval=-scale, maxval=scale
+                    )
+                    self._bias_ = self._bias_.at[h, i, :].set(values)
+
 
 class sLSTMCell_vanilla(sLSTMCellBase):
     """Vanilla implementation of sLSTM cell using JAX/Flax."""

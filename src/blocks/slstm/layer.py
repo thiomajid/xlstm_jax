@@ -1,7 +1,6 @@
 # Copyright (c) NXAI GmbH and its affiliates 2024
 # Korbininan Pöppel
 # Converted to JAX/Flax by Abdoul Majid O. Thiombiano
-import functools
 import typing as tp
 from dataclasses import dataclass
 
@@ -11,6 +10,7 @@ from flax import nnx
 from xlstm.blocks.slstm.layer import sLSTMLayer as TorchsLSTMLayer
 
 from ...components.conv import CausalConv1d, CausalConv1dConfig
+from ...components.init import small_init_initializer
 from ...components.linear_headwise import (
     LinearHeadwiseExpand,
     LinearHeadwiseExpandConfig,
@@ -96,7 +96,7 @@ class sLSTMLayer(nnx.Module):
 
         self.dropout = nnx.Dropout(rate=self.config.dropout, rngs=rngs)
 
-    @functools.partial(nnx.jit, static_argnames=("return_last_state",))
+    # @functools.partial(nnx.jit, static_argnames=("return_last_state",))
     def __call__(
         self,
         x: jnp.ndarray,
@@ -205,3 +205,40 @@ class sLSTMLayer(nnx.Module):
         self.ogate.load_from_torch(layer.ogate)
         self.slstm_cell.load_from_torch(layer.slstm_cell)
         self.group_norm.load_from_torch(layer.group_norm)
+
+    def reset_parameters(self):
+        self.slstm_cell.reset_parameters()
+        self.group_norm.reset_parameters()
+
+        init_fn = small_init_initializer(dim=self.config.embedding_dim)
+        self.igate.kernel = nnx.Param(
+            init_fn(
+                self.rngs.params(),
+                shape=self.igate.kernel.shape,
+                dtype=self.igate.kernel.dtype,
+            ),
+        )
+
+        self.fgate.kernel = nnx.Param(
+            init_fn(
+                self.rngs.params(),
+                shape=self.fgate.kernel.shape,
+                dtype=self.fgate.kernel.dtype,
+            ),
+        )
+
+        self.zgate.kernel = nnx.Param(
+            init_fn(
+                self.rngs.params(),
+                shape=self.zgate.kernel.shape,
+                dtype=self.zgate.kernel.dtype,
+            ),
+        )
+
+        self.ogate.kernel = nnx.Param(
+            init_fn(
+                self.rngs.params(),
+                shape=self.ogate.kernel.shape,
+                dtype=self.ogate.kernel.dtype,
+            ),
+        )

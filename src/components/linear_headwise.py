@@ -68,7 +68,7 @@ class LinearHeadwiseExpand(nnx.Module):
         # Create weight parameter
         stddev = math.sqrt(2 / 5 / in_features_per_head)
         if config.trainable_weight:
-            self.weight = nnx.Param(
+            self.kernel = nnx.Param(
                 jnp.empty(
                     (num_heads, out_features_per_head, in_features_per_head),
                     dtype=dtype,
@@ -77,7 +77,7 @@ class LinearHeadwiseExpand(nnx.Module):
             )
         else:
             # For non-trainable weights, use nnx.State instead of nnx.Param
-            self.weight = nnx.State(
+            self.kernel = nnx.State(
                 jnp.empty(
                     (num_heads, out_features_per_head, in_features_per_head),
                     dtype=dtype,
@@ -112,16 +112,18 @@ class LinearHeadwiseExpand(nnx.Module):
         # Get shape information
         shape = x.shape
         x = x.reshape(*shape[:-1], self.config.num_heads, -1)
-        x = jnp.einsum("...hd,hod->...ho", x, self.weight)
+        x = jnp.einsum("...hd,hod->...ho", x, self.kernel)
         x = x.reshape(*shape[:-1], -1)
 
-        x = jax.lax.cond(
-            self.bias is not None,
-            lambda x: x + self.bias,
-            lambda x: x,
-            x,
-            operand=None,
-        )
+        if self.bias is not None:
+            x = x + self.bias
+
+        # x = jax.lax.cond(
+        #     self.bias is not None,
+        #     lambda _x: _x + self.bias,
+        #     lambda _x: _x,
+        #     operand=x,
+        # )
 
         return x
 
@@ -129,11 +131,11 @@ class LinearHeadwiseExpand(nnx.Module):
         """Reset the parameters of the module."""
         # Initialize weight with small random values
         # stddev = math.sqrt(2 / 5 / (self.config.in_features // self.config.num_heads))
-        stddev = math.sqrt(2 / 5 / self.weight.shape[-1])
+        stddev = math.sqrt(2 / 5 / self.kernel.shape[-1])
 
-        self.weight.value = jax.nn.initializers.normal(stddev=stddev)(
+        self.kernel.value = jax.nn.initializers.normal(stddev=stddev)(
             key=self.rngs.params(),
-            shape=self.weight.shape,
+            shape=self.kernel.shape,
             dtype=self.dtype,
         )
 
@@ -159,7 +161,7 @@ class LinearHeadwiseExpand(nnx.Module):
     def load_from_torch(self, torch_linear: TorchLinearHeadwiseExpand) -> None:
         """Load weights from a PyTorch LinearHeadwiseExpand module."""
         # Load weights and biases from the PyTorch model
-        self.weight.value = nnx.Param(jnp.array(torch_linear.weight.data.numpy()))
+        self.kernel.value = nnx.Param(jnp.array(torch_linear.weight.data.numpy()))
 
         if self.bias is not None:
             self.bias.value = nnx.Param(jnp.array(torch_linear.bias.data.numpy()))

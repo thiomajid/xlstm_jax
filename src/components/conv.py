@@ -1,7 +1,6 @@
 # Copyright (c) NXAI GmbH and its affiliates 2024
 # Maximilian Beck, Korbinian Pöppel
 # Converted to JAX/Flax by Abdoul Majid O. Thiombiano
-import functools
 from dataclasses import dataclass, field
 from typing import Any, Optional, Tuple
 
@@ -114,10 +113,10 @@ class CausalConv1d(nnx.Module):
                 dtype=self.dtype,
             )
 
-    @functools.partial(
-        nnx.jit,
-        static_argnames=("return_last_state",),
-    )
+    # @functools.partial(
+    #     nnx.jit,
+    #     static_argnames=("return_last_state",),
+    # )
     def __call__(
         self,
         x: jnp.ndarray,

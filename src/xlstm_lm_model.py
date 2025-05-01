@@ -97,7 +97,7 @@ class xLSTMLMModel(WeightDecayOptimGroupMixin, nnx.Module):
                 )(key, shape, dtype=self.dtype),
             )
 
-    @nnx.jit
+    # @nnx.jit
     def __call__(self, input_ids: jnp.ndarray) -> jnp.ndarray:
         """Forward pass through the model.
 
@@ -107,6 +107,7 @@ class xLSTMLMModel(WeightDecayOptimGroupMixin, nnx.Module):
         Returns:
             Logits of shape [B, S, vocab_size]
         """
+
         # Get embedding weights (either shared or dedicated)
         if self.config.tie_weights:
             emb_weight = self.shared_weight
