@@ -2,11 +2,19 @@
 # Maximilian Beck
 # Converted to JAX/Flax by Abdoul Majid O. Thiombiano
 import math
+import typing as tp
 from abc import ABC
 from dataclasses import dataclass
-from typing import List, Sequence, Tuple
 
 from flax import nnx
+from xlstm import (
+    FeedForwardConfig,
+    mLSTMBlockConfig,
+    mLSTMLayerConfig,
+    sLSTMBlockConfig,
+    sLSTMLayerConfig,
+    xLSTMLMModelConfig,
+)
 
 
 @dataclass
@@ -39,7 +47,7 @@ class WeightDecayOptimGroupMixin(nnx.Module, ABC):
     def get_weight_decay_optim_groups(
         self,
         **kwargs,
-    ) -> Tuple[Sequence[nnx.Param], Sequence[nnx.Param]]:
+    ) -> tp.Tuple[tp.Sequence[nnx.Param], tp.Sequence[nnx.Param]]:
         """Return a tuple of two sequences, one for parameters with weight decay and one for parameters without weight decay.
         Performs checks to ensure that each parameter is only in one of the two sequences.
         """
@@ -67,12 +75,12 @@ class WeightDecayOptimGroupMixin(nnx.Module, ABC):
     def get_weight_decay_optim_group_param_names(
         self,
         **kwargs,
-    ) -> Tuple[List[str], List[str]]:
+    ) -> tuple[list[str], list[str]]:
         """Return a tuple of two lists, one for parameter names with weight decay and one for parameter names without weight decay.
         Performs checks to ensure that each parameter is only in one of the two sequences.
         """
 
-        def _is_in_sequence(param: nnx.Param, sequence: Sequence[nnx.Param]) -> bool:
+        def _is_in_sequence(param: nnx.Param, sequence: tp.Sequence[nnx.Param]) -> bool:
             return any(param is p for p in sequence)
 
         weight_decay, no_weight_decay = self.get_weight_decay_optim_groups(**kwargs)
@@ -118,9 +126,9 @@ class WeightDecayOptimGroupMixin(nnx.Module, ABC):
 
     def _get_weight_decay_optim_groups_for_modules(
         self,
-        modules: List["WeightDecayOptimGroupMixin"],
+        modules: list["WeightDecayOptimGroupMixin"],
         **kwargs,
-    ) -> Tuple[tuple[nnx.Param], tuple[nnx.Param]]:
+    ) -> tuple[tuple[nnx.Param], tuple[nnx.Param]]:
         weight_decay = ()
         no_weight_decay = ()
 
@@ -130,3 +138,36 @@ class WeightDecayOptimGroupMixin(nnx.Module, ABC):
             no_weight_decay += nwd
 
         return weight_decay, no_weight_decay
+
+
+def parse_xlstm_config_dict(config_dict: dict[str, tp.Any]):
+    # mLSTM block config deserialization
+    mlstm_block_dict: dict[str, tp.Any] = config_dict.pop("mlstm_block", None)
+    mlstm_block = None
+    if mlstm_block_dict:
+        mlstm_block = mLSTMBlockConfig(
+            mlstm=mLSTMLayerConfig(**mlstm_block_dict.pop("mlstm")),
+            **mlstm_block_dict,
+        )
+
+    # sLSTM block config deserialization
+    slstm_block_dict: dict[str, tp.Any] = config_dict.pop("slstm_block", None)
+    slstm_block = None
+
+    if slstm_block_dict:
+        feedforward_dict = slstm_block_dict.pop("feedforward")
+        feedforward_config = FeedForwardConfig(**feedforward_dict)
+        slstm_block = sLSTMBlockConfig(
+            slstm=sLSTMLayerConfig(**slstm_block_dict.pop("slstm")),
+            feedforward=feedforward_config,
+            **slstm_block_dict,
+        )
+
+    # xLSTM stack config deserialization
+    xlstm_config = xLSTMLMModelConfig(
+        mlstm_block=mlstm_block,
+        slstm_block=slstm_block,
+        **config_dict,
+    )
+
+    return xlstm_config

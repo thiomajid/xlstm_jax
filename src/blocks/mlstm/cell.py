@@ -72,10 +72,8 @@ class mLSTMCell(nnx.Module):
         # Create causal mask buffer
         # INFO: if the mask is not an instance of nnx.Param, the jit compilation
         # fails when nnx will try to flatten the mLSTMCell's pytree
-        self.causal_mask = nnx.Param(
-            jnp.tril(
-                jnp.ones((config.context_length, config.context_length), dtype=bool)
-            )
+        self.causal_mask = jnp.tril(
+            jnp.ones((config.context_length, config.context_length), dtype=bool)
         )
 
     # @nnx.jit
@@ -237,14 +235,16 @@ class mLSTMCell(nnx.Module):
         self.outnorm.reset_parameters()
 
         # forget gate initialization
-        self.fgate.kernel.value = jnp.zeros_like(self.fgate.kernel.value)
-        self.fgate.bias.value = jnp.linspace(
-            3.0, 6.0, num=self.fgate.bias.value.size
-        ).reshape(self.fgate.bias.value.shape)
+        self.fgate.kernel = nnx.Param(jnp.zeros_like(self.fgate.kernel))
 
+        self.fgate.bias = nnx.Param(
+            jnp.linspace(3.0, 6.0, num=self.fgate.bias.value.size).reshape(
+                self.fgate.bias.value.shape
+            )
+        )
         # input gate initialization
-        self.igate.kernel.value = jnp.zeros_like(self.igate.kernel.value)
-        self.igate.bias.value = jnp.zeros_like(self.igate.bias.value)
+        self.igate.kernel = nnx.Param(jnp.zeros_like(self.igate.kernel))
+        self.igate.bias = nnx.Param(jnp.zeros_like(self.igate.bias))
 
     def load_from_torch(self, cell: TorchmLSTMCell):
         """Load weights from a PyTorch mLSTM cell."""
@@ -258,6 +258,6 @@ class mLSTMCell(nnx.Module):
         self.outnorm.load_from_torch(cell.outnorm)
 
         # Load the causal mask
-        self.causal_mask = nnx.Param(
-            jnp.array(cell.get_buffer("causal_mask").detach().numpy())
-        )
+        # self.causal_mask = nnx.Param(
+        #     jnp.array(cell.get_buffer("causal_mask").detach().numpy())
+        # )

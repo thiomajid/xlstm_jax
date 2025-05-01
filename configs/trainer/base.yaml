@@ -1,0 +1,44 @@
+# Custom training arguments
+tokenizer: "HuggingFaceTB/SmolLM2-135M-Instruct"
+
+train_dataset_url: "roneneldan/TinyStories"
+# train_subset: "default"
+train_split: "train"
+train_samples: 8
+
+eval_dataset_url: "roneneldan/TinyStories"
+# eval_subset: "CC-MAIN-2018-43"
+eval_split: "validation"
+eval_samples: 8
+features: ["text"]
+
+# HF TrainerArguments arguments
+num_train_epochs: 2
+gradient_accumulation_steps: 1
+per_device_train_batch_size: 4
+per_device_eval_batch_size: 4
+
+learning_rate: 0.0002
+# weight_decay: 0.001
+warmup_ratio: 0.1
+optim: "adamw_torch_fused"
+lr_scheduler_type: "cosine"
+torch_compile: false
+fp16: false
+use_cpu: false
+gradient_checkpointing: false
+
+output_dir: "artifacts"
+logging_dir: "artifacts"
+report_to: "tensorboard"
+logging_steps: 2
+save_steps: 2
+hub_private_repo: true
+save_total_limit: 2
+load_best_model_at_end: true
+eval_strategy: "steps"
+
+push_to_hub: true
+resume_from_checkpoint: "artifacts"
+hub_model_id: "thiomajid/distil_ratio"
+remove_unused_columns: false
