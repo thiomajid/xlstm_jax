@@ -512,7 +512,7 @@ class sLSTMCell_vanilla(sLSTMCellBase):
         )
 
         # Load bias
-        self._bias_ = nnx.Param(jnp.array(cell._bias.data.numpy()))
+        self._bias_ = nnx.Param(jnp.array(cell._bias.detach().numpy()))
 
 
 class sLSTMCell(nnx.Module):

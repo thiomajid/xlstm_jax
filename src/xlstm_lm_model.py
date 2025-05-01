@@ -108,12 +108,16 @@ class xLSTMLMModel(WeightDecayOptimGroupMixin, nnx.Module):
             Logits of shape [B, S, vocab_size]
         """
 
+        print("Input IDs shape:", input_ids.shape)
+
         # Get embedding weights (either shared or dedicated)
         if self.config.tie_weights:
             emb_weight = self.shared_weight
             hidden_states = jnp.take(emb_weight, input_ids, axis=0)
         else:
             hidden_states = self.token_embedding(input_ids)
+
+        print("Hidden states shape after embedding:", hidden_states.shape)
 
         hidden_states = self.embedding_dropout(hidden_states)
         hidden_states = self.xlstm_block_stack(hidden_states)
@@ -135,7 +139,7 @@ class xLSTMLMModel(WeightDecayOptimGroupMixin, nnx.Module):
         """
         # embedding layer
         self.token_embedding.embedding = nnx.Param(
-            jnp.array(torch_model.token_embedding.weight.data.numpy())
+            jnp.array(torch_model.token_embedding.weight.detach().numpy())
         )
 
         self.xlstm_block_stack.load_from_torch(torch_model.xlstm_block_stack)
@@ -143,17 +147,17 @@ class xLSTMLMModel(WeightDecayOptimGroupMixin, nnx.Module):
         if not self.config.tie_weights:
             # lm_head layer
             self.lm_head.kernel = nnx.Param(
-                jnp.array(torch_model.lm_head.weight.data.numpy())
+                jnp.array(torch_model.lm_head.weight.detach().T.numpy())
             )
 
             if torch_model.lm_head.bias is not None:
                 self.lm_head.bias = nnx.Param(
-                    jnp.array(torch_model.lm_head.bias.data.numpy())
+                    jnp.array(torch_model.lm_head.bias.detach().numpy())
                 )
         else:
             # shared weight layer
             self.shared_weight = nnx.Param(
-                jnp.array(torch_model.lm_head.weight.data.numpy())
+                jnp.array(torch_model.lm_head.weight.detach().T.numpy())
             )
 
     def step(

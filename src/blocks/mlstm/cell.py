@@ -249,13 +249,15 @@ class mLSTMCell(nnx.Module):
     def load_from_torch(self, cell: TorchmLSTMCell):
         """Load weights from a PyTorch mLSTM cell."""
         # Load weights and biases from the PyTorch model
-        self.igate.kernel = nnx.Param(jnp.array(cell.igate.weight.data.numpy()))
-        self.igate.bias = nnx.Param(jnp.array(cell.igate.bias.data.numpy()))
+        self.igate.kernel = nnx.Param(jnp.array(cell.igate.weight.detach().T.numpy()))
+        self.igate.bias = nnx.Param(jnp.array(cell.igate.bias.detach().numpy()))
 
-        self.fgate.kernel = nnx.Param(jnp.array(cell.fgate.weight.data.numpy()))
-        self.fgate.bias = nnx.Param(jnp.array(cell.fgate.bias.data.numpy()))
+        self.fgate.kernel = nnx.Param(jnp.array(cell.fgate.weight.detach().T.numpy()))
+        self.fgate.bias = nnx.Param(jnp.array(cell.fgate.bias.detach().numpy()))
 
         self.outnorm.load_from_torch(cell.outnorm)
 
         # Load the causal mask
-        self.causal_mask = nnx.Param(jnp.array(cell.get_buffer("causal_mask").numpy()))
+        self.causal_mask = nnx.Param(
+            jnp.array(cell.get_buffer("causal_mask").detach().numpy())
+        )

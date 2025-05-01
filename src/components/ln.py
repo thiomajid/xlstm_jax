@@ -141,10 +141,10 @@ class LayerNorm(nnx.Module):
     def load_from_torch(self, torch_ln: TorchLayerNorm) -> None:
         """Load weights from a PyTorch LayerNorm module."""
         if self.scale is not None:
-            self.scale = nnx.Param(jnp.array(torch_ln.weight.data.numpy()))
+            self.scale = nnx.Param(jnp.array(torch_ln.weight.detach().numpy()))
 
         if self.bias is not None:
-            self.bias = nnx.Param(jnp.array(torch_ln.bias.data.numpy()))
+            self.bias = nnx.Param(jnp.array(torch_ln.bias.detach().numpy()))
 
 
 class MultiHeadLayerNorm(nnx.Module):
@@ -302,8 +302,9 @@ class MultiHeadLayerNorm(nnx.Module):
 
     def load_from_torch(self, torch_ln: TorchMultiHeadLayerNorm) -> None:
         """Load weights from a PyTorch MultiHeadLayerNorm module."""
+
         if self.scale is not None:
-            self.scale = nnx.Param(jnp.array(torch_ln.weight.data.numpy()))
+            self.scale = nnx.Param(jnp.array(torch_ln.weight.detach().numpy()))
 
         if self.bias is not None:
-            self.bias = nnx.Param(jnp.array(torch_ln.bias.data.numpy()))
+            self.bias = nnx.Param(jnp.array(torch_ln.bias.detach().numpy()))

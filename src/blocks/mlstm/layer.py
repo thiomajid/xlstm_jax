@@ -283,22 +283,28 @@ class mLSTMLayer(nnx.Module):
         """Load parameters from a PyTorch mLSTMLayer."""
 
         # proj_up
-        self.proj_up.kernel = nnx.Param(jnp.array(layer.proj_up.weight.data.numpy()))
+        self.proj_up.kernel = nnx.Param(
+            jnp.array(layer.proj_up.weight.detach().T.numpy())
+        )
         if self.proj_up.bias is not None:
-            self.proj_up.bias = nnx.Param(jnp.array(layer.proj_up.bias.data.numpy()))
+            self.proj_up.bias = nnx.Param(
+                jnp.array(layer.proj_up.bias.detach().numpy())
+            )
 
         # proj_down
         self.proj_down.kernel = nnx.Param(
-            jnp.array(layer.proj_down.weight.data.numpy())
+            jnp.array(layer.proj_down.weight.detach().T.numpy())
         )
 
         if self.proj_down.bias is not None:
             self.proj_down.bias = nnx.Param(
-                jnp.array(layer.proj_down.bias.data.numpy())
+                jnp.array(layer.proj_down.bias.detach().numpy())
             )
 
         # learnable_skip
-        self.learnable_skip = nnx.Param(jnp.array(layer.learnable_skip.data.numpy()))
+        self.learnable_skip = nnx.Param(
+            jnp.array(layer.learnable_skip.detach().numpy())
+        )
 
         # QKV projections
         self.q_proj.load_from_torch(layer.q_proj)

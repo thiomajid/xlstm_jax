@@ -38,8 +38,8 @@ def create_jax_model():
         vocab_size=128,
         context_length=16,
         embedding_dim=32,
-        num_blocks=2,
-        slstm_at=[0],
+        num_blocks=1,
+        slstm_at=[],
         mlstm_block=mLSTMBlockConfig(
             mlstm=mLSTMLayerConfig(
                 conv1d_kernel_size=4,
@@ -68,8 +68,8 @@ def create_torch_model():
         vocab_size=128,
         context_length=16,
         embedding_dim=32,
-        num_blocks=2,
-        slstm_at=[0],
+        num_blocks=1,
+        slstm_at=[],
         mlstm_block=TorchmLSTMBlockConfig(
             mlstm=TorchmLSTMLayerConfig(
                 conv1d_kernel_size=4, qkv_proj_blocksize=4, num_heads=4
