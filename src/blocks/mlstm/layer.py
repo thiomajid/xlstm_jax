@@ -45,7 +45,6 @@ class mLSTMLayer(nnx.Module):
 
     def __init__(self, config: mLSTMLayerConfig, *, rngs: nnx.Rngs, dtype=jnp.float32):
         self.config = config
-        self.rngs = rngs
         self.dtype = dtype
 
         # Up-projection
@@ -73,7 +72,7 @@ class mLSTMLayer(nnx.Module):
                 num_heads=num_proj_heads,
                 bias=self.config.bias,
             ),
-            rngs=self.rngs,
+            rngs=rngs,
             dtype=self.dtype,
         )
 
@@ -83,7 +82,7 @@ class mLSTMLayer(nnx.Module):
                 num_heads=num_proj_heads,
                 bias=self.config.bias,
             ),
-            rngs=self.rngs,
+            rngs=rngs,
             dtype=self.dtype,
         )
 
@@ -93,7 +92,7 @@ class mLSTMLayer(nnx.Module):
                 num_heads=num_proj_heads,
                 bias=self.config.bias,
             ),
-            rngs=self.rngs,
+            rngs=rngs,
             dtype=self.dtype,
         )
 
@@ -104,7 +103,7 @@ class mLSTMLayer(nnx.Module):
                 kernel_size=self.config.conv1d_kernel_size,
             ),
             rngs=rngs,
-            dtype=dtype,
+            dtype=self.dtype,
         )
 
         # mLSTM cell
@@ -115,14 +114,14 @@ class mLSTMLayer(nnx.Module):
                 num_heads=self.config.num_heads,
             ),
             rngs=rngs,
-            dtype=dtype,
+            dtype=self.dtype,
         )
 
         self.ogate_act_fn = jax.nn.swish
 
         # Learnable skip connection parameter
         self.learnable_skip = nnx.Param(
-            jnp.ones(self.config._inner_embedding_dim, dtype=dtype)
+            jnp.ones(self.config._inner_embedding_dim, dtype=self.dtype)
         )
 
         # Down-projection
@@ -135,11 +134,11 @@ class mLSTMLayer(nnx.Module):
             )(key, shape, dtype=p_dtype),
             bias_init=jax.nn.initializers.zeros,
             rngs=rngs,
-            param_dtype=dtype,
-            dtype=dtype,
+            param_dtype=self.dtype,
+            dtype=self.dtype,
         )
 
-        self.dropout = nnx.Dropout(rate=self.config.dropout, rngs=self.rngs)
+        self.dropout = nnx.Dropout(rate=self.config.dropout, rngs=rngs)
 
     # @nnx.jit
     def __call__(self, x: jnp.ndarray):
@@ -151,7 +150,7 @@ class mLSTMLayer(nnx.Module):
         Returns:
             Output tensor of shape (B, S, H)
         """
-        B, S, _ = x.shape
+        # B, S, _ = x.shape
 
         # Up-projection
         x_inner = self.proj_up(x)
@@ -226,18 +225,18 @@ class mLSTMLayer(nnx.Module):
         y = self.dropout(self.proj_down(h_state))
         return y, {"mlstm_state": mlstm_state, "conv_state": conv_state}
 
-    def reset_parameters(self):
+    def reset_parameters(self, rngs: nnx.Rngs):
         """Reset parameters of the layer."""
         # init inproj
         small_init_fn = small_init_initializer(dim=self.config.embedding_dim)
         self.proj_up.kernel = nnx.Param(
-            small_init_fn(self.rngs.params(), self.proj_up.kernel.shape, self.dtype)
+            small_init_fn(rngs.params(), self.proj_up.kernel.shape, self.dtype)
         )
 
         if self.proj_up.bias is not None:
             self.proj_up.bias = nnx.Param(
                 nnx.initializers.zeros(
-                    self.rngs.params(), self.proj_up.bias.shape, self.dtype
+                    rngs.params(), self.proj_up.bias.shape, self.dtype
                 )
             )
 
@@ -245,31 +244,29 @@ class mLSTMLayer(nnx.Module):
             dim=self.config.embedding_dim, num_blocks=self.config._num_blocks
         )
         self.proj_down.kernel = nnx.Param(
-            wang_init_fn(self.rngs.params(), self.proj_down.kernel.shape, self.dtype)
+            wang_init_fn(rngs.params(), self.proj_down.kernel.shape, self.dtype)
         )
 
         if self.proj_up.bias is not None:
             self.proj_down.bias = nnx.Param(
                 nnx.initializers.zeros(
-                    self.rngs.params(), self.proj_down.bias.shape, self.dtype
+                    rngs.params(), self.proj_down.bias.shape, self.dtype
                 )
             )
 
         self.learnable_skip = nnx.Param(
-            nnx.initializers.ones(
-                self.rngs.params(), self.learnable_skip.shape, self.dtype
-            )
+            nnx.initializers.ones(rngs.params(), self.learnable_skip.shape, self.dtype)
         )
 
         def _init_qkv_proj(qkv_proj: LinearHeadwiseExpand):
             qkv_proj.kernel = nnx.Param(
-                small_init_fn(self.rngs.params(), qkv_proj.kernel.shape, self.dtype)
+                small_init_fn(rngs.params(), qkv_proj.kernel.shape, self.dtype)
             )
 
             if qkv_proj.bias is not None:
                 qkv_proj.bias = nnx.Param(
                     nnx.initializers.zeros(
-                        self.rngs.params(), qkv_proj.bias.shape, self.dtype
+                        rngs.params(), qkv_proj.bias.shape, self.dtype
                     )
                 )
 
@@ -277,7 +274,7 @@ class mLSTMLayer(nnx.Module):
         _init_qkv_proj(self.k_proj)
         _init_qkv_proj(self.v_proj)
 
-        self.mlstm_cell.reset_parameters()
+        self.mlstm_cell.reset_parameters(rngs)
 
     def load_from_torch(self, layer: TorchmLSTMLayer):
         """Load parameters from a PyTorch mLSTMLayer."""

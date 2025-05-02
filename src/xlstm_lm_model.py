@@ -73,17 +73,17 @@ class xLSTMLMModel(WeightDecayOptimGroupMixin, nnx.Module):
         else:
             self.shared_weight = None
 
-    def reset_parameters(self):
-        self.xlstm_block_stack.reset_parameters()
+    def reset_parameters(self, rngs: nnx.Rngs):
+        self.xlstm_block_stack.reset_parameters(rngs)
 
         # small_init_initializer is used to initialize the token embedding
+        small_init = small_init_initializer(dim=self.config.embedding_dim)
         self.token_embedding.embedding = nnx.Param(
             jnp.zeros(
-                (self.config.vocab_size, self.config.embedding_dim), dtype=self.dtype
+                (self.config.vocab_size, self.config.embedding_dim),
+                dtype=self.dtype,
             ),
-            init_fn=lambda key, shape: small_init_initializer(
-                dim=self.config.embedding_dim
-            )(key, shape, dtype=self.dtype),
+            init_fn=lambda key, shape: small_init(key, shape, dtype=self.dtype),
         )
 
         if not self.config.tie_weights:
@@ -92,9 +92,7 @@ class xLSTMLMModel(WeightDecayOptimGroupMixin, nnx.Module):
                     (self.config.embedding_dim, self.config.vocab_size),
                     dtype=self.dtype,
                 ),
-                init_fn=lambda key, shape: small_init_initializer(
-                    dim=self.config.embedding_dim
-                )(key, shape, dtype=self.dtype),
+                init_fn=lambda key, shape: small_init(key, shape, dtype=self.dtype),
             )
 
     # @nnx.jit

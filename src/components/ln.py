@@ -53,7 +53,6 @@ class LayerNorm(nnx.Module):
         else:
             self.bias = None
 
-        self.rngs = rngs
         self.num_features = num_features
         self.epsilon = epsilon
         self.dtype = dtype
@@ -117,25 +116,24 @@ class LayerNorm(nnx.Module):
 
         return normed
 
-    def reset_parameters(self):
+    def reset_parameters(self, rngs: nnx.Rngs):
         if self.scale is not None:
-            key = self.rngs.params()
             if self.residual_scale:
                 self.scale = nnx.Param(
                     jax.nn.initializers.zeros(
-                        key, self.scale.shape, dtype=self.scale.dtype
+                        rngs.params(), self.scale.shape, dtype=self.scale.dtype
                     )
                 )
             else:
                 self.scale = nnx.Param(
-                    self.scale_init(key, self.scale.shape, dtype=self.scale.dtype)
+                    self.scale_init(
+                        rngs.params(), self.scale.shape, dtype=self.scale.dtype
+                    )
                 )
 
         if self.bias is not None:
             self.bias = nnx.Param(
-                self.bias_init(
-                    self.rngs.params(), self.bias.shape, dtype=self.bias.dtype
-                )
+                self.bias_init(rngs.params(), self.bias.shape, dtype=self.bias.dtype)
             )
 
     def load_from_torch(self, torch_ln: TorchLayerNorm) -> None:
@@ -195,7 +193,6 @@ class MultiHeadLayerNorm(nnx.Module):
         else:
             self.bias = None
 
-        self.rngs = rngs
         self.epsilon = epsilon
         self.dtype = dtype
         self.param_dtype = param_dtype
@@ -279,9 +276,9 @@ class MultiHeadLayerNorm(nnx.Module):
         normed = normed.reshape(B, S, NH, DH).transpose(0, 2, 1, 3)
         return normed
 
-    def reset_parameters(self):
+    def reset_parameters(self, rngs: nnx.Rngs):
         if self.scale is not None:
-            key = self.rngs.params()
+            key = rngs.params()
             if self.residual_scale:
                 self.scale = nnx.Param(
                     jax.nn.initializers.zeros(
@@ -295,9 +292,7 @@ class MultiHeadLayerNorm(nnx.Module):
 
         if self.bias is not None:
             self.bias = nnx.Param(
-                self.bias_init(
-                    self.rngs.params(), self.bias.shape, dtype=self.bias.dtype
-                )
+                self.bias_init(rngs.params(), self.bias.shape, dtype=self.bias.dtype)
             )
 
     def load_from_torch(self, torch_ln: TorchMultiHeadLayerNorm) -> None:

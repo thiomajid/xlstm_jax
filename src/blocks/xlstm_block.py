@@ -75,7 +75,6 @@ class xLSTMBlock(nnx.Module):
         """
         self.config = config
         self.dtype = dtype
-        self.rngs = rngs
 
         embedding_dim = (
             self.config.mlstm.embedding_dim
@@ -190,10 +189,10 @@ class xLSTMBlock(nnx.Module):
             self.ffn.load_from_torch(torch_block.ffn)
             self.ffn_norm.load_from_torch(torch_block.ffn_norm)
 
-    def reset_parameters(self) -> None:
+    def reset_parameters(self, rngs: nnx.Rngs) -> None:
         """Reset parameters of the xLSTM block."""
-        self.xlstm_norm.reset_parameters()
-        self.xlstm.reset_parameters()
+        self.xlstm_norm.reset_parameters(rngs)
+        self.xlstm.reset_parameters(rngs)
         if self.ffn is not None:
-            self.ffn.reset_parameters()
-            self.ffn_norm.reset_parameters()
+            self.ffn.reset_parameters(rngs)
+            self.ffn_norm.reset_parameters(rngs)

@@ -9,4 +9,5 @@ wheels/
 # Virtual environments
 .venv
 torch_xlstm/
+ckpts_demo/
 outputs/

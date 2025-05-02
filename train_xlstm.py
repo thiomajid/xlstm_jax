@@ -271,9 +271,9 @@ def main(cfg: DictConfig):
                 if global_step % args.save_steps == 0:
                     # Save the model checkpoint
                     logger.info(f"Saving checkpoint at step {global_step}...")
-                    filename = ckpt_dir / f"checkpoint-{global_step}"
-                    _, state = nnx.split(model)
-                    checkpointer.save(filename, state)
+                    state_dir = ckpt_dir / f"state-{global_step}"
+                    state = nnx.state(model)
+                    checkpointer.save(state_dir, state)
                     # checkpointer.wait_until_finished()
 
             # Evaluate the model after each epoch
@@ -305,6 +305,8 @@ def main(cfg: DictConfig):
             metrics.reset()
 
     logger.info("Training completed.")
+    checkpointer.wait_until_finished()
+
     logger.info("Saving final model...")
     # save metrics to a json file
     artifacts_dir = Path(args.output_dir)
@@ -322,7 +324,6 @@ def main(cfg: DictConfig):
         )
 
     # put the checkpoint with the best train_perplexity in artifacts_dir
-    checkpointer.wait_until_finished()
     train_ppl = history["train_perplexity"]
 
     # sort the train_ppl by value in ascending order
@@ -337,11 +338,11 @@ def main(cfg: DictConfig):
     logger.info(f"Best checkpoint: {step} with train_perplexity: {ppl_value}")
 
     # copy the checkpoint to artifacts_dir
-    best_ckpt_path = ckpt_dir / f"checkpoint-{step}"
+    best_ckpt_path = ckpt_dir / f"state-{step}"
     best_ckpt_path = best_ckpt_path.resolve()
     shutil.copytree(
         best_ckpt_path,
-        artifacts_dir / f"checkpoint-{step}",
+        artifacts_dir / f"state-{step}",
         dirs_exist_ok=True,
     )
 

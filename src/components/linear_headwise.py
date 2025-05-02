@@ -58,7 +58,6 @@ class LinearHeadwiseExpand(nnx.Module):
     ):
         self.config = config
         self.dtype = dtype
-        self.rngs = rngs
 
         in_features = self.config.in_features
         num_heads = self.config.num_heads
@@ -127,22 +126,26 @@ class LinearHeadwiseExpand(nnx.Module):
 
         return x
 
-    def reset_parameters(self):
+    def reset_parameters(self, rngs: nnx.Rngs):
         """Reset the parameters of the module."""
         # Initialize weight with small random values
         # stddev = math.sqrt(2 / 5 / (self.config.in_features // self.config.num_heads))
         stddev = math.sqrt(2 / 5 / self.kernel.shape[-1])
 
-        self.kernel.value = jax.nn.initializers.normal(stddev=stddev)(
-            key=self.rngs.params(),
-            shape=self.kernel.shape,
-            dtype=self.dtype,
+        self.kernel = nnx.Param(
+            jax.nn.initializers.normal(stddev=stddev)(
+                key=rngs.params(),
+                shape=self.kernel.shape,
+                dtype=self.dtype,
+            )
         )
 
         # Initialize bias to zeros if applicable
         if self.bias is not None:
-            self.bias.value = jax.nn.initializers.zeros(
-                key=self.rngs.params(), shape=self.bias.shape, dtype=self.dtype
+            self.bias = nnx.Param(
+                jax.nn.initializers.zeros(
+                    key=rngs.params(), shape=self.bias.shape, dtype=self.dtype
+                )
             )
 
     def __repr__(self):

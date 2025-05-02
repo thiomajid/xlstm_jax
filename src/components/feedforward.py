@@ -57,7 +57,6 @@ class GatedFeedForward(nnx.Module):
 
     def __init__(self, config: FeedForwardConfig, *, rngs: nnx.Rngs, dtype=jnp.float32):
         self.config = config
-        self.rngs = rngs
 
         # Initialize linear layers
         self.proj_up = nnx.Linear(
@@ -101,14 +100,14 @@ class GatedFeedForward(nnx.Module):
 
         return output
 
-    def reset_parameters(self):
+    def reset_parameters(self,rngs:nnx.Rngs):
         """Reset parameters of the linear layers."""
         # Initialize weights using small init for proj_up
         small_init = small_init_initializer(dim=self.config.embedding_dim)
 
         self.proj_up.kernel = nnx.Param(
             small_init(
-                key=self.rngs.params(),
+                key=rngs.params(),
                 shape=self.proj_up.kernel.shape,
                 dtype=self.proj_up.kernel.dtype,
             )
@@ -122,7 +121,7 @@ class GatedFeedForward(nnx.Module):
 
         self.proj_down.kernel = nnx.Param(
             wang_init(
-                key=self.rngs.params(),
+                key=rngs.params(),
                 shape=self.proj_down.kernel.shape,
                 dtype=self.proj_down.kernel.dtype,
             )
@@ -132,7 +131,7 @@ class GatedFeedForward(nnx.Module):
         if self.proj_up.bias is not None:
             self.proj_up.bias = nnx.Param(
                 jax.nn.initializers.zeros(
-                    key=self.rngs.params(),
+                    key=rngs.params(),
                     shape=self.proj_up.bias.shape,
                     dtype=self.proj_up.bias.dtype,
                 )
@@ -141,7 +140,7 @@ class GatedFeedForward(nnx.Module):
         if self.proj_down.bias is not None:
             self.proj_down.bias = nnx.Param(
                 jax.nn.initializers.zeros(
-                    key=self.rngs.params(),
+                    key=rngs.params(),
                     shape=self.proj_down.bias.shape,
                     dtype=self.proj_down.bias.dtype,
                 )

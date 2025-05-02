@@ -16,7 +16,15 @@ if __name__ == "__main__":
     first_output = model(dummy_input)
     print("First output shape:", first_output.shape)
 
-    model.reset_parameters()
+    jitted_output = jitted_model(dummy_input)
+    print("Jitted output shape:", jitted_output.shape)
+    if jnp.array_equal(first_output, jitted_output):
+        print("Jitted output is the same as the first output.")
+    else:
+        print("Jitted output is different from the first output.")
+
+    rngs = nnx.Rngs(42)
+    model.reset_parameters(rngs)
     print("Model parameters initialized.")
 
     second_output = model(dummy_input)
@@ -27,10 +35,3 @@ if __name__ == "__main__":
         print("Outputs are the same after resetting parameters.")
     else:
         print("Outputs are different after resetting parameters.")
-
-    jitted_output = jitted_model(dummy_input)
-    print("Jitted output shape:", jitted_output.shape)
-    if jnp.array_equal(first_output, jitted_output):
-        print("Jitted output is the same as the first output.")
-    else:
-        print("Jitted output is different from the first output.")

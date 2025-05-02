@@ -86,7 +86,6 @@ class CausalConv1d(nnx.Module):
         dtype=jnp.float32,
     ):
         self.config = config
-        self.rngs = rngs
         self.dtype = dtype
         self.groups = self.config.feature_dim
         if self.config.channel_mixing:
@@ -109,7 +108,7 @@ class CausalConv1d(nnx.Module):
                 kernel_init=jax.nn.initializers.lecun_normal(),
                 use_bias=self.config.causal_conv_bias,
                 bias_init=jax.nn.initializers.zeros,
-                rngs=self.rngs,
+                rngs=rngs,
                 dtype=self.dtype,
             )
 
@@ -189,17 +188,16 @@ class CausalConv1d(nnx.Module):
 
         return y, (new_conv_state,)
 
-    def reset_parameters(self):
+    def reset_parameters(self, rngs: nnx.Rngs):
         """Reset the parameters of the convolutional layer."""
         if self.config.kernel_size == 0:
             return
 
         # Reset kernel
         kernel_init = jax.nn.initializers.lecun_normal()
-        key = self.rngs.params()
         self.conv.kernel = nnx.Param(
             kernel_init(
-                key,
+                rngs.params(),
                 self.conv.kernel.value.shape,
                 self.conv.kernel.value.dtype,
             )
@@ -210,7 +208,7 @@ class CausalConv1d(nnx.Module):
             bias_init = jax.nn.initializers.zeros
             self.conv.bias = nnx.Param(
                 bias_init(
-                    key,
+                    rngs.params(),
                     self.conv.bias.value.shape,
                     self.conv.bias.value.dtype,
                 )

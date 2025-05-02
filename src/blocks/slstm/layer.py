@@ -39,7 +39,6 @@ class sLSTMLayer(nnx.Module):
 
     def __init__(self, config: sLSTMLayerConfig, *, rngs: nnx.Rngs, dtype=jnp.float32):
         self.config = config
-        self.rngs = rngs
         self.dtype = dtype
 
         # Initialize convolutional layer if needed
@@ -206,14 +205,14 @@ class sLSTMLayer(nnx.Module):
         self.slstm_cell.load_from_torch(layer.slstm_cell)
         self.group_norm.load_from_torch(layer.group_norm)
 
-    def reset_parameters(self):
-        self.slstm_cell.reset_parameters()
-        self.group_norm.reset_parameters()
+    def reset_parameters(self, rngs: nnx.Rngs) -> None:
+        self.slstm_cell.reset_parameters(rngs)
+        self.group_norm.reset_parameters(rngs)
 
         init_fn = small_init_initializer(dim=self.config.embedding_dim)
         self.igate.kernel = nnx.Param(
             init_fn(
-                self.rngs.params(),
+                rngs.params(),
                 shape=self.igate.kernel.shape,
                 dtype=self.igate.kernel.dtype,
             ),
@@ -221,7 +220,7 @@ class sLSTMLayer(nnx.Module):
 
         self.fgate.kernel = nnx.Param(
             init_fn(
-                self.rngs.params(),
+                rngs.params(),
                 shape=self.fgate.kernel.shape,
                 dtype=self.fgate.kernel.dtype,
             ),
@@ -229,7 +228,7 @@ class sLSTMLayer(nnx.Module):
 
         self.zgate.kernel = nnx.Param(
             init_fn(
-                self.rngs.params(),
+                rngs.params(),
                 shape=self.zgate.kernel.shape,
                 dtype=self.zgate.kernel.dtype,
             ),
@@ -237,7 +236,7 @@ class sLSTMLayer(nnx.Module):
 
         self.ogate.kernel = nnx.Param(
             init_fn(
-                self.rngs.params(),
+                rngs.params(),
                 shape=self.ogate.kernel.shape,
                 dtype=self.ogate.kernel.dtype,
             ),

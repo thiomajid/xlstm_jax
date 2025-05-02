@@ -26,7 +26,6 @@ class mLSTMCell(nnx.Module):
 
     def __init__(self, config: mLSTMCellConfig, *, rngs: nnx.Rngs, dtype=jnp.float32):
         self.config = config
-        self.rngs = rngs
         self.dtype = dtype
 
         # Store configuration parameters for easier access
@@ -72,8 +71,10 @@ class mLSTMCell(nnx.Module):
         # Create causal mask buffer
         # INFO: if the mask is not an instance of nnx.Param, the jit compilation
         # fails when nnx will try to flatten the mLSTMCell's pytree
-        self.causal_mask = jnp.tril(
-            jnp.ones((config.context_length, config.context_length), dtype=bool)
+        self.causal_mask = nnx.Variable(
+            jnp.tril(
+                jnp.ones((config.context_length, config.context_length), dtype=bool)
+            )
         )
 
     # @nnx.jit
@@ -231,8 +232,8 @@ class mLSTMCell(nnx.Module):
 
         return h_state_norm, mlstm_state
 
-    def reset_parameters(self):
-        self.outnorm.reset_parameters()
+    def reset_parameters(self, rngs: nnx.Rngs) -> None:
+        self.outnorm.reset_parameters(rngs)
 
         # forget gate initialization
         self.fgate.kernel = nnx.Param(jnp.zeros_like(self.fgate.kernel))

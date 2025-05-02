@@ -5,8 +5,11 @@ import math
 import typing as tp
 from abc import ABC
 from dataclasses import dataclass
+from pathlib import Path
 
+import jax
 import jax.numpy as jnp
+import orbax.checkpoint as ocp
 from flax import nnx
 from xlstm import (
     FeedForwardConfig,
@@ -187,3 +190,35 @@ def str2dtype(dtype_str: str) -> jnp.dtype:
     if dtype_str not in _dtype_map:
         raise ValueError(f"Unsupported dtype: {dtype_str}")
     return _dtype_map[dtype_str]
+
+
+def filter_prng_keys(pytree):
+    return jax.tree.map(
+        lambda x: None
+        if hasattr(x, "dtype") and str(x.dtype).startswith("key<")
+        else x,
+        pytree,
+    )
+
+
+def load_model_from_checkpoint(
+    model: nnx.Module,
+    checkpoint_path: str | Path,
+) -> nnx.Module:
+    """Load a model from a checkpoint."""
+    abstract_model = nnx.eval_shape(lambda: model)
+    graphdef, abstract_state = nnx.split(abstract_model)
+    print("Created abstract state")
+
+    if isinstance(checkpoint_path, str):
+        checkpoint_path = Path(checkpoint_path).absolute()
+
+    if not checkpoint_path.exists():
+        raise FileNotFoundError(f"Checkpoint path {checkpoint_path} does not exist.")
+
+    checkpointer = ocp.StandardCheckpointer()
+    restored_state = checkpointer.restore(checkpoint_path, abstract_state)
+    restored_state = filter_prng_keys(restored_state)
+    merged_model = nnx.merge(model, restored_state)
+    print("Merged state with the model.")
+    return merged_model

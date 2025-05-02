@@ -126,7 +126,6 @@ class sLSTMCellBase(nnx.Module):
         dtype=jnp.float32,
     ):
         self.config = config
-        self.rngs = rngs
         self.dtype = dtype
 
         LOGGER.debug("Init module")
@@ -342,10 +341,10 @@ class sLSTMCellBase(nnx.Module):
 
         return output, state
 
-    def reset_parameters(self):
+    def reset_parameters(self, rngs: nnx.Rngs):
         """Resets this layer's parameters to their initial values."""
         # Initialize recurrent kernel parameters
-        rng = self.rngs.params()
+        key = rngs.params()
         head_dim = self.config.head_dim
 
         # Initialize recurrent kernel weights
@@ -359,7 +358,7 @@ class sLSTMCellBase(nnx.Module):
             scale = 1.0 / jnp.sqrt(self.config.hidden_size)
             for h in range(self.config.num_heads):
                 for i in range(self.config.num_gates):
-                    key = jax.random.fold_in(rng, h * self.config.num_gates + i)
+                    key = jax.random.fold_in(key, h * self.config.num_gates + i)
                     values = jax.random.uniform(
                         key, shape=(head_dim, head_dim), minval=-scale, maxval=scale
                     )
@@ -401,7 +400,7 @@ class sLSTMCellBase(nnx.Module):
                     # Standard uniform initialization with scaling
                     scale = 1.0 / jnp.sqrt(self.config.hidden_size)
                     key = jax.random.fold_in(
-                        rng,
+                        key,
                         h * self.config.num_gates
                         + i
                         + self.config.num_heads * self.config.num_gates,

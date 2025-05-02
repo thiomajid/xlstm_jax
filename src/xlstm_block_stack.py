@@ -209,11 +209,11 @@ class xLSTMBlockStack(nnx.Module):
 
         return x, new_state
 
-    def reset_parameters(self) -> None:
+    def reset_parameters(self, rngs: nnx.Rngs) -> None:
         for block in self.blocks:
-            block.reset_parameters()
+            block.reset_parameters(rngs)
         if not isinstance(self.post_blocks_norm, Identity):
-            self.post_blocks_norm.reset_parameters()
+            self.post_blocks_norm.reset_parameters(rngs)
 
     def load_from_torch(self, stack: TorchxLSTMBlockStack):
         """Load parameters from a PyTorch xLSTM block stack.
