@@ -26,7 +26,7 @@ from transformers import (
 from src import xLSTMLMModel
 from src._trainer.arguments import CustomArgs
 from src._trainer.data import get_dataset
-from src.utils import parse_xlstm_config_dict
+from src.utils import parse_xlstm_config_dict, str2dtype
 
 
 def loss_fn(model: xLSTMLMModel, batch: tuple[jnp.ndarray, ...]):
@@ -127,8 +127,9 @@ def main(cfg: DictConfig):
 
     # Model instance
     logger.info("Creating xLSTM model...")
+    dtype = str2dtype(cfg["dtype"])
     rngs = nnx.Rngs(args.seed, params=jax.random.key(args.seed))
-    model = xLSTMLMModel(config, rngs=rngs, dtype=jnp.float32)
+    model = xLSTMLMModel(config, rngs=rngs, dtype=dtype)
 
     logger.info(
         f"Loading training dataset from {args.train_dataset_url} with {args.train_samples} samples"

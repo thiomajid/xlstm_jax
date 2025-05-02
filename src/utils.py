@@ -6,6 +6,7 @@ import typing as tp
 from abc import ABC
 from dataclasses import dataclass
 
+import jax.numpy as jnp
 from flax import nnx
 from xlstm import (
     FeedForwardConfig,
@@ -171,3 +172,18 @@ def parse_xlstm_config_dict(config_dict: dict[str, tp.Any]):
     )
 
     return xlstm_config
+
+
+_dtype_map = {
+    "float32": jnp.float32,
+    "float16": jnp.float16,
+    "bfloat16": jnp.bfloat16,
+}
+
+
+def str2dtype(dtype_str: str) -> jnp.dtype:
+    """Convert a string representation of a data type to a numpy dtype."""
+
+    if dtype_str not in _dtype_map:
+        raise ValueError(f"Unsupported dtype: {dtype_str}")
+    return _dtype_map[dtype_str]
