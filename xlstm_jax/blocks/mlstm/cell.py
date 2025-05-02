@@ -2,7 +2,6 @@
 # Maximilian Beck
 # Converted to JAX/Flax by Abdoul Majid O. Thiombiano
 from dataclasses import dataclass
-from typing import Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -141,96 +140,6 @@ class mLSTMCell(nnx.Module):
         h_state_norm = h_state_norm.reshape(B, S, -1)  # (B, S, H)
 
         return h_state_norm
-
-    def step(
-        self,
-        q: jnp.ndarray,
-        k: jnp.ndarray,
-        v: jnp.ndarray,
-        mlstm_state: Optional[Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]] = None,
-    ) -> Tuple[jnp.ndarray, Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]]:
-        """Process a single step with the mLSTM cell.
-
-        Args:
-            q: Query tensor of shape (B, 1, H)
-            k: Key tensor of shape (B, 1, H)
-            v: Value tensor of shape (B, 1, H)
-            mlstm_state: Previous state tuple (c_state, n_state, m_state) or None for initial state
-
-        Returns:
-            Tuple of output tensor (B, 1, H) and new state tuple
-        """
-        B, S, _ = q.shape  # (B, S, H)
-        assert S == 1, (
-            f"mLSTMCell.step only supports sequence length S=1, but got S={S}."
-        )
-
-        # Combine inputs for gate computation
-        if_gate_input = jnp.concatenate([q, k, v], axis=-1)
-
-        # Reshape for multi-head processing
-        q_reshaped = q.reshape(B, S, self.config.num_heads, -1)  # (B, 1, NH, DH)
-        k_reshaped = k.reshape(B, S, self.config.num_heads, -1)  # (B, 1, NH, DH)
-        v_reshaped = v.reshape(B, S, self.config.num_heads, -1)  # (B, 1, NH, DH)
-
-        _, _, NH, DH = q_reshaped.shape
-
-        # Transpose to put heads dimension before sequence dimension
-        q_transposed = jnp.transpose(q_reshaped, (0, 2, 1, 3))  # (B, NH, 1, DH)
-        k_transposed = jnp.transpose(k_reshaped, (0, 2, 1, 3))  # (B, NH, 1, DH)
-        v_transposed = jnp.transpose(v_reshaped, (0, 2, 1, 3))  # (B, NH, 1, DH)
-
-        # Compute input and forget gate pre-activations
-        igate_preact = self.igate(if_gate_input)  # (B, 1, NH)
-        igate_preact = jnp.transpose(igate_preact, (0, 2, 1))[
-            ..., None
-        ]  # (B, NH, 1, 1)
-
-        fgate_preact = self.fgate(if_gate_input)  # (B, 1, NH)
-        fgate_preact = jnp.transpose(fgate_preact, (0, 2, 1))[
-            ..., None
-        ]  # (B, NH, 1, 1)
-
-        # Initialize state if not provided
-        if mlstm_state is None:
-            c_state = jnp.zeros((B, NH, DH, DH), dtype=q.dtype)
-            n_state = jnp.zeros((B, NH, DH, 1), dtype=q.dtype)
-            m_state = jnp.zeros((B, NH, 1, 1), dtype=q.dtype)
-        else:
-            c_state, n_state, m_state = mlstm_state
-            # No need to convert device/dtype in JAX
-
-        # Verify state shapes
-        assert c_state.shape == (B, NH, DH, DH), (
-            f"Expected c_state shape {(B, NH, DH, DH)}, but got {c_state.shape}."
-        )
-        assert n_state.shape == (B, NH, DH, 1), (
-            f"Expected n_state shape {(B, NH, DH, 1)}, but got {n_state.shape}."
-        )
-        assert m_state.shape == (B, NH, 1, 1), (
-            f"Expected m_state shape {(B, NH, 1, 1)}, but got {m_state.shape}."
-        )
-
-        # Apply mLSTM step function
-        h_state, mlstm_state = self.backend_fn_step(
-            c_state=c_state,
-            n_state=n_state,
-            m_state=m_state,
-            q=q_transposed,
-            k=k_transposed,
-            v=v_transposed,
-            igate_preact=igate_preact,
-            fgate_preact=fgate_preact,
-        )  # (B, NH, 1 DH), ((B, NH, DH, DH), (B, NH, DH, 1), (B, NH, 1, 1))
-
-        # Apply normalization
-        h_state_norm = self.outnorm(h_state)  # (B, NH, 1, DH)
-
-        # Reshape to original dimensions
-        h_state_norm = jnp.transpose(h_state_norm, (0, 2, 1, 3))  # (B, 1, NH, DH)
-        h_state_norm = h_state_norm.reshape(B, S, -1)  # (B, 1, H)
-
-        return h_state_norm, mlstm_state
 
     def reset_parameters(self, rngs: nnx.Rngs) -> None:
         self.outnorm.reset_parameters(rngs)

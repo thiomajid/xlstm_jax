@@ -2,7 +2,7 @@
 # Maximilian Beck
 # Converted to JAX/Flax by Abdoul Majid O. Thiombiano
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple
+from typing import Optional
 
 import jax
 import jax.numpy as jnp
@@ -176,54 +176,6 @@ class mLSTMLayer(nnx.Module):
         # Down-projection with dropout
         y = self.dropout(self.proj_down(h_state))
         return y
-
-    def step(
-        self,
-        x: jnp.ndarray,
-        mlstm_state: Optional[Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]] = None,
-        conv_state: Optional[Tuple[jnp.ndarray, ...]] = None,
-    ) -> Tuple[jnp.ndarray, Dict[str, Tuple[jnp.ndarray, ...]]]:
-        """Process a single step (token) through the mLSTM layer.
-
-        Args:
-            x: Input tensor of shape (B, 1, H)
-            mlstm_state: Previous mLSTM state or None for initial state
-            conv_state: Previous convolution state or None for initial state
-
-        Returns:
-            Tuple of output tensor and dictionary of updated states
-        """
-        B, S, _ = x.shape
-        assert S == 1, (
-            f"mLSTMLayer.step only supports sequence length S=1, but got S={S}."
-        )
-
-        # Up-projection
-        x_inner = self.proj_up(x)
-        x_mlstm, z = jnp.split(
-            x_inner, indices_or_sections=[self.config._inner_embedding_dim], axis=-1
-        )
-
-        # mLSTM branch
-        x_mlstm_conv, conv_state = self.conv1d.step(x_mlstm, conv_state=conv_state)
-        x_mlstm_conv_act = jax.nn.swish(x_mlstm_conv)
-
-        q = self.q_proj(x_mlstm_conv_act)
-        k = self.k_proj(x_mlstm_conv_act)
-        v = self.v_proj(x_mlstm)
-
-        h_tilde_state, mlstm_state = self.mlstm_cell.step(
-            q=q, k=k, v=v, mlstm_state=mlstm_state
-        )
-
-        h_tilde_state_skip = h_tilde_state + (self.learnable_skip * x_mlstm_conv_act)
-
-        # Output / z branch
-        h_state = h_tilde_state_skip * self.ogate_act_fn(z)
-
-        # Down-projection with dropout
-        y = self.dropout(self.proj_down(h_state))
-        return y, {"mlstm_state": mlstm_state, "conv_state": conv_state}
 
     def reset_parameters(self, rngs: nnx.Rngs):
         """Reset parameters of the layer."""

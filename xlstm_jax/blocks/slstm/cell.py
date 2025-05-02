@@ -314,18 +314,6 @@ class sLSTMCellBase(nnx.Module):
         """
         return all_states[:, -1]
 
-    def step(
-        self, input: jnp.ndarray, state: Optional[jnp.ndarray] = None
-    ) -> Tuple[jnp.ndarray, jnp.ndarray]:
-        """Process a single step through the sLSTM cell."""
-        self._check_input(input)
-        # we end with a sequence-first input (S, B, features)
-        input = self._permute_input(input)
-        states = self._get_state(input, state)
-        all_states = self._impl_step(input, states)
-        output = self._permute_output(all_states[0])
-        return output, states
-
     def __call__(
         self,
         input: jnp.ndarray,

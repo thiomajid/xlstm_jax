@@ -2,7 +2,6 @@
 # Maximilian Beck
 # Converted to JAX/Flax by Abdoul Majid O. Thiombiano
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
 
 import jax.numpy as jnp
 from flax import nnx
@@ -153,41 +152,6 @@ class xLSTMLMModel(WeightDecayOptimGroupMixin, nnx.Module):
             self.shared_weight = nnx.Param(
                 jnp.array(torch_model.lm_head.weight.detach().T.numpy())
             )
-
-    def step(
-        self,
-        input_ids: jnp.ndarray,
-        state: Optional[Dict[str, Dict[str, Any]]] = None,
-    ) -> Tuple[jnp.ndarray, Dict[str, Dict[str, Any]]]:
-        """Process a single step through the model.
-
-        Args:
-            input_ids: Input token indices of shape [B, 1]
-            state: State dictionary from previous steps or None for initial state
-
-        Returns:
-            Tuple of logits and updated state dictionary
-        """
-        # Get embedding weights (either shared or dedicated)
-        if self.config.tie_weights:
-            emb_weight = self.shared_weight
-            hidden_states = jnp.take(emb_weight, input_ids, axis=0)
-        else:
-            hidden_states = self.token_embedding(input_ids)
-
-        hidden_states = self.embedding_dropout(hidden_states)
-
-        # Process through xLSTM block stack, step by step
-        hidden_states, state = self.xlstm_block_stack.step(hidden_states, state=state)
-
-        # Apply language model head
-        if self.config.tie_weights:
-            # When weights are tied, use a functional linear layer with the shared weights
-            logits = jnp.matmul(hidden_states, self.shared_weight.T)
-        else:
-            logits = self.lm_head(hidden_states)
-
-        return logits, state
 
     def get_param_groups_for_optimizer(self, weight_decay=0.01):
         """Create parameter groups for optimization with weight decay control.

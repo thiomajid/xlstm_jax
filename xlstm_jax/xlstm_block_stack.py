@@ -169,45 +169,6 @@ class xLSTMBlockStack(nnx.Module):
 
         return x
 
-    def step(
-        self,
-        x: jnp.ndarray,
-        state: Optional[Dict[str, Dict[str, Any]]] = None,
-    ) -> Tuple[jnp.ndarray, Dict[str, Dict[str, Any]]]:
-        """Process a single step through all blocks (for inference).
-
-        Args:
-            x: Input tensor for a single step of shape [B, 1, D]
-            state: Dictionary of states for each block or None for initial states
-
-        Returns:
-            Tuple of output tensor and updated state dictionary
-        """
-        # Initialize empty state dictionary if None provided
-        if state is None:
-            state = {}
-
-        new_state = {}
-
-        # Process through each block in sequence
-        for block_idx, block in enumerate(self.blocks):
-            block_name = f"block_{block_idx}"
-            block_state = state.get(block_name, {})
-
-            # Process through the current block
-            x, block_new_state = block.step(
-                x,
-                states=block_state,  # Use 'states' instead of **dict unpacking for compatibility
-            )
-
-            # Store the updated state
-            new_state[block_name] = block_new_state
-
-        # Apply post-blocks normalization if present
-        if self.post_blocks_norm is not None:
-            x = self.post_blocks_norm(x)
-
-        return x, new_state
 
     def reset_parameters(self, rngs: nnx.Rngs) -> None:
         for block in self.blocks:

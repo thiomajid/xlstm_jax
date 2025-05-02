@@ -55,7 +55,13 @@ class FeedForwardConfig(UpProjConfigMixin):
 class GatedFeedForward(nnx.Module):
     config_class = FeedForwardConfig
 
-    def __init__(self, config: FeedForwardConfig, *, rngs: nnx.Rngs, dtype=jnp.float32):
+    def __init__(
+        self,
+        config: FeedForwardConfig,
+        *,
+        rngs: nnx.Rngs,
+        dtype=jnp.float32,
+    ):
         self.config = config
 
         # Initialize linear layers
@@ -100,7 +106,7 @@ class GatedFeedForward(nnx.Module):
 
         return output
 
-    def reset_parameters(self,rngs:nnx.Rngs):
+    def reset_parameters(self, rngs: nnx.Rngs):
         """Reset parameters of the linear layers."""
         # Initialize weights using small init for proj_up
         small_init = small_init_initializer(dim=self.config.embedding_dim)

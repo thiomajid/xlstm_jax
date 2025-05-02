@@ -2,7 +2,7 @@
 # Maximilian Beck
 # Converted to JAX/Flax by Abdoul Majid O. Thiombiano
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
+from typing import Optional
 
 import jax.numpy as jnp
 from flax import nnx
@@ -134,47 +134,6 @@ class xLSTMBlock(nnx.Module):
         # )
 
         return x
-
-    def step(
-        self,
-        x: jnp.ndarray,
-        states: Optional[Dict[str, Any]] = None,
-        **kwargs,
-    ) -> Tuple[jnp.ndarray, Dict[str, Any]]:
-        """Process a single step through the xLSTM block.
-
-        Args:
-            x: Input tensor of shape (B, 1, D)
-            states: Dictionary of previous states or None for initial states
-
-        Returns:
-            Tuple of output tensor and updated states dictionary
-        """
-        # Initialize empty states dictionary if None provided
-        if states is None:
-            states = {}
-
-        # Extract xlstm states from the states dictionary
-        xlstm_states = {}
-        for k in ["mlstm_state", "conv_state"]:
-            if k in states:
-                xlstm_states[k] = states[k]
-
-        # Apply xlstm layer in step mode
-        xlstm_output, new_states = self.xlstm.step(
-            self.xlstm_norm(x), **xlstm_states, **kwargs
-        )
-
-        # Add residual connection
-        x = x + xlstm_output
-
-        # Apply feedforward network if present
-        if self.ffn is not None:
-            ffn_input = self.ffn_norm(x)
-            ffn_output = self.ffn(ffn_input)
-            x = x + ffn_output
-
-        return x, new_states
 
     def load_from_torch(self, torch_block: TorchxLSTMBlock) -> None:
         """Load parameters from a PyTorch xLSTM block.

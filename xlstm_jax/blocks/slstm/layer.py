@@ -149,51 +149,6 @@ class sLSTMLayer(nnx.Module):
         else:
             return out
 
-    def step(
-        self,
-        x: jnp.ndarray,
-        conv_state: tp.Optional[tuple[jnp.ndarray, ...]] = None,
-        slstm_state: tp.Optional[jnp.ndarray] = None,
-    ):
-        """Process a single step through the sLSTM layer.
-
-        Args:
-            x: Input tensor of shape (B, 1, D)
-            conv_state: Previous convolution state
-            slstm_state: Previous sLSTM cell state
-
-        Returns:
-            Tuple of output tensor and dictionary of updated states
-        """
-        B, S, _ = x.shape
-
-        # Apply convolution if configured
-        if self.config.conv1d_kernel_size > 0:
-            x_conv, conv_state = self.conv1d.step(x, conv_state=conv_state)
-            x_conv = jax.nn.swish(x_conv)  # SiLU is the same as swish
-        else:
-            x_conv = x
-
-        # Apply gate projections
-        f = self.fgate(x_conv)
-        i = self.igate(x_conv)
-        z = self.zgate(x)
-        o = self.ogate(x)
-
-        # Concatenate gate outputs into a single tensor
-        gates_combined = jnp.concatenate([i, f, z, o], axis=-1)
-
-        # Process through sLSTM cell
-        y, slstm_state = self.slstm_cell(gates_combined, state=slstm_state)
-        y = self.dropout(y)
-
-        # Apply normalization and reshape to final output format
-        # In JAX we use transpose + reshape instead of pytorch's view
-        # Change shape from (B, S, D) to (B, D, S)
-        out = self.group_norm(y).transpose(0, 2, 1).reshape(B, S, -1)
-
-        return out, {"conv_state": conv_state, "slstm_state": slstm_state}
-
     def load_from_torch(self, layer: TorchsLSTMLayer):
         """Load weights from a PyTorch sLSTM layer."""
 

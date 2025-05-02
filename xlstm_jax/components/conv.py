@@ -4,7 +4,6 @@
 from dataclasses import dataclass, field
 from typing import Any, Optional, Tuple
 
-import chex
 import jax
 import jax.numpy as jnp
 from flax import nnx
@@ -21,45 +20,6 @@ class CausalConv1dConfig:
 
     def __post_init__(self):
         assert self.kernel_size >= 0, "kernel_size must be >= 0"
-
-
-def conv1d_step(
-    x: jnp.ndarray,
-    conv_state: jnp.ndarray,
-    conv1d_weight: jnp.ndarray,
-    conv1d_bias: Optional[jnp.ndarray] = None,
-) -> tuple[jnp.ndarray, jnp.ndarray]:
-    """
-    B: batch size
-    S: sequence length
-    D: feature dimension
-    KS: kernel size
-    Args:
-        x (jnp.ndarray): (B, S, D)
-        conv_state (jnp.ndarray): (B, KS, D)
-        conv1d_weight (jnp.ndarray): (KS, D)
-    """
-    # Ensure the batch size and feature dimension match
-    chex.assert_equal(x.shape[0], conv_state.shape[0])
-
-    # Ensure the feature dimension matches
-    chex.assert_equal(x.shape[2], conv_state.shape[2])
-
-    # Ensure the sequence length is 1
-    chex.assert_equal(x.shape[1], 1)
-
-    # Create a new state by shifting and updating, instead of in-place modification
-    new_conv_state = jnp.roll(conv_state, shift=-1, axis=1).at[:, -1:, :].set(x)
-
-    # Calculate the convolution output
-    y = jnp.sum(new_conv_state * conv1d_weight, axis=1, keepdims=True)
-    y = jax.lax.cond(
-        conv1d_bias is not None,
-        lambda: y + conv1d_bias,
-        lambda: y,
-    )
-
-    return y, new_conv_state
 
 
 class CausalConv1d(nnx.Module):
@@ -112,10 +72,6 @@ class CausalConv1d(nnx.Module):
                 dtype=self.dtype,
             )
 
-    # @functools.partial(
-    #     nnx.jit,
-    #     static_argnames=("return_last_state",),
-    # )
     def __call__(
         self,
         x: jnp.ndarray,
@@ -135,7 +91,7 @@ class CausalConv1d(nnx.Module):
 
         # Handle the case when conv_state is provided
         if conv_state is not None:
-            y = y[:, conv_state.shape[2] :, :]
+            y = y[:, conv_state.shape[1] :, :]
 
         # output = jnp.transpose(y[:, :, : -self.pad], (0, 2, 1))
         # no need to transpose since the feature dimension is already the last one
@@ -152,41 +108,6 @@ class CausalConv1d(nnx.Module):
             return output, last_state
         else:
             return output
-
-    def step(
-        self,
-        x: jnp.ndarray,
-        conv_state: Optional[Tuple[jnp.ndarray]] = None,
-    ) -> Tuple[jnp.ndarray, Tuple[jnp.ndarray]]:
-        """Process a single step with the convolutional layer."""
-        if self.config.kernel_size == 0:
-            return x, conv_state
-
-        B, S, D = x.shape
-
-        # Initialize state if not provided
-        if conv_state is None:
-            conv_state = (jnp.zeros((B, self.config.kernel_size, D), dtype=self.dtype),)
-
-        # Extract weights in the format needed for conv1d_step
-        if self.groups == 1:
-            # For channel mixing, we need to reshape the weight
-            conv1d_weight = jnp.transpose(self.weight[:, 0, :], (1, 0))
-        else:
-            # For depthwise, weights are already in the right shape
-            conv1d_weight = jnp.transpose(self.weight[:, 0, :], (1, 0))
-
-        # Process a single step
-        y, new_conv_state = conv1d_step(
-            x,
-            conv_state[0],
-            conv1d_weight,
-            conv1d_bias=self.bias
-            if self.config.causal_conv_bias and self.bias is not None
-            else None,
-        )
-
-        return y, (new_conv_state,)
 
     def reset_parameters(self, rngs: nnx.Rngs):
         """Reset the parameters of the convolutional layer."""
