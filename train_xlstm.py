@@ -17,6 +17,7 @@ from transformers import (
     DataCollatorForLanguageModeling,
     HfArgumentParser,
 )
+import orbax.checkpoint as orbax
 
 from src import xLSTMLMModel
 from src._trainer.arguments import CustomArgs
@@ -211,6 +212,16 @@ def main(cfg: DictConfig):
         "eval_loss": [],
         "eval_perplexity": [],
     }
+
+    # checkpoint manager
+    checkpoint_manager = orbax.CheckpointManager(
+        checkpoint=orbax.Checkpoint(),
+        options=orbax.CheckpointOptions(
+            keep=5,
+            keep_every_n_epochs=1,
+            keep_every_n_steps=1000,
+        ),
+    )
 
     # Start training with progress bar being updated and gradient accumulation
     # if needed and descriptive messages
