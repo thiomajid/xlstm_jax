@@ -274,7 +274,7 @@ def main(cfg: DictConfig):
                     filename = ckpt_dir / f"checkpoint-{global_step}"
                     _, state = nnx.split(model)
                     checkpointer.save(filename, state)
-                    checkpointer.wait_until_finished()
+                    # checkpointer.wait_until_finished()
 
             # Evaluate the model after each epoch
             for batch in tqdm(eval_loader, desc="Evaluating"):
