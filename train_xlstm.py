@@ -26,7 +26,7 @@ from transformers import (
 from src import xLSTMLMModel
 from src._trainer.arguments import CustomArgs
 from src._trainer.data import get_dataset
-from src.utils import parse_xlstm_config_dict, str2dtype
+from src.utils import filter_prng_keys, parse_xlstm_config_dict, str2dtype
 
 
 def loss_fn(model: xLSTMLMModel, batch: tuple[jnp.ndarray, ...]):
@@ -274,8 +274,8 @@ def main(cfg: DictConfig):
                     logger.info(f"Saving checkpoint at step {global_step}...")
                     state_dir = ckpt_dir / f"{CKPT_PREFIX}-{global_step}"
                     state = nnx.state(model)
-                    checkpointer.save(state_dir, state)
-                    # checkpointer.wait_until_finished()
+                    filtered_state = filter_prng_keys(state)  # Add this line
+                    checkpointer.save(state_dir, filtered_state)  # Save filtered state
 
             # Evaluate the model after each epoch
             for batch in tqdm(eval_loader, desc="Evaluating"):
