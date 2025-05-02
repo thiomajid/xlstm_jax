@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
 import json
 import logging
+import shutil
+from dataclasses import asdict
+from pathlib import Path
 from typing import cast
 
 import hydra
 import jax
 import jax.numpy as jnp
 import optax
+import orbax.checkpoint as ocp
 from einops import rearrange
 from flax import nnx
+from huggingface_hub import create_repo, repo_exists, upload_large_folder
 from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -17,7 +22,6 @@ from transformers import (
     DataCollatorForLanguageModeling,
     HfArgumentParser,
 )
-import orbax.checkpoint as orbax
 
 from src import xLSTMLMModel
 from src._trainer.arguments import CustomArgs
@@ -206,7 +210,7 @@ def main(cfg: DictConfig):
         perplexity=nnx.metrics.Average("perplexity"),
     )
 
-    history = {
+    history: dict[str, list[dict[int, float]]] = {
         "train_loss": [],
         "train_perplexity": [],
         "eval_loss": [],
@@ -214,14 +218,9 @@ def main(cfg: DictConfig):
     }
 
     # checkpoint manager
-    checkpoint_manager = orbax.CheckpointManager(
-        checkpoint=orbax.Checkpoint(),
-        options=orbax.CheckpointOptions(
-            keep=5,
-            keep_every_n_epochs=1,
-            keep_every_n_steps=1000,
-        ),
-    )
+
+    ckpt_dir = ocp.test_utils.erase_and_create_empty(Path(args.logging_dir).absolute())
+    checkpointer = ocp.StandardCheckpointer()
 
     # Start training with progress bar being updated and gradient accumulation
     # if needed and descriptive messages
@@ -247,13 +246,20 @@ def main(cfg: DictConfig):
                 if global_step % args.logging_steps == 0:
                     # Log the metrics
                     for metric, value in metrics.compute().items():
-                        history[f"train_{metric}"].append(value.item())
+                        history[f"train_{metric}"].append({global_step: value.item()})
 
                         # update progress bar description
                         pbar.set_postfix({metric: value.item()})
 
                     pbar.refresh()
                     metrics.reset()
+
+                if global_step % args.save_steps == 0:
+                    # Save the model checkpoint
+                    logger.info(f"Saving checkpoint at step {global_step}...")
+                    filename = ckpt_dir / f"checkpoint-{global_step}"
+                    _, state = nnx.split(model)
+                    checkpointer.save(filename, state)
 
             # Evaluate the model after each epoch
             for batch in tqdm(eval_loader, desc="Evaluating"):
@@ -263,7 +269,7 @@ def main(cfg: DictConfig):
                 eval_step(model=model, batch=_batch, metrics=metrics)
 
             for metric, value in metrics.compute().items():
-                history[f"eval_{metric}"].append(value.item())
+                history[f"eval_{metric}"].append({global_step: value.item()})
 
                 # update progress bar description
                 pbar.set_postfix({f"eval_{metric}": value.item()})
@@ -271,10 +277,66 @@ def main(cfg: DictConfig):
             pbar.refresh()
             metrics.reset()
 
-    # save metrics to a json file
-    with open("./train_history.json", "w") as f:
-        json.dump(history, f, indent=4)
     logger.info("Training completed.")
+    logger.info("Saving final model...")
+    # save metrics to a json file
+    artifacts_dir = Path(args.output_dir)
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+    with open(artifacts_dir / "train_history.json", "w") as f:
+        json.dump(history, f, indent=4)
+
+    # save the model config
+    with open(artifacts_dir / "config.json", "w") as f:
+        json.dump(
+            asdict(config),
+            f,
+            indent=4,
+        )
+
+    # put the checkpoint with the best train_perplexity in artifacts_dir
+    checkpointer.wait_until_finished()
+    train_ppl = history["train_perplexity"]
+
+    # sort the train_ppl by value in ascending order
+    sorted_train_ppl = sorted(
+        train_ppl, key=lambda x: list(x.values())[0], reverse=False
+    )
+    best_ckpt = sorted_train_ppl[0]
+    step = list(best_ckpt.keys())[0]
+    ppl_value = list(best_ckpt.values())[0]
+    logger.info(f"Best checkpoint: {step} with train_perplexity: {ppl_value}")
+
+    # copy the checkpoint to artifacts_dir
+    best_ckpt_path = ckpt_dir / f"checkpoint-{step}"
+    best_ckpt_path = best_ckpt_path.resolve()
+    shutil.copytree(
+        best_ckpt_path,
+        artifacts_dir / f"checkpoint-{step}",
+        dirs_exist_ok=True,
+    )
+
+    if args.push_to_hub:
+        logger.info("Pushing model to Hugging Face Hub...")
+        if not repo_exists(args.hub_model_id, token=args.hub_token):
+            logger.info(
+                f"Creating repository {args.hub_model_id} on Hugging Face Hub..."
+            )
+            create_repo(
+                repo_id=args.hub_model_id,
+                token=args.hub_token,
+                private=args.hub_private_repo,
+                exist_ok=True,
+            )
+
+        # Upload the model to the hub
+        logger.info(f"Uploading model to {args.hub_model_id}...")
+        upload_large_folder(
+            repo_id=args.hub_model_id,
+            folder_path=artifacts_dir,
+            commit_message="Upload model",
+            token=args.hub_token,
+        )
 
 
 if __name__ == "__main__":

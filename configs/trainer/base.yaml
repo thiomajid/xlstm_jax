@@ -29,7 +29,7 @@ use_cpu: false
 gradient_checkpointing: false
 
 output_dir: "artifacts"
-logging_dir: "artifacts"
+logging_dir: "logs"
 report_to: "tensorboard"
 logging_steps: 2
 save_steps: 2
@@ -38,7 +38,8 @@ save_total_limit: 2
 load_best_model_at_end: true
 eval_strategy: "steps"
 
-push_to_hub: true
+push_to_hub: false
 resume_from_checkpoint: "artifacts"
-hub_model_id: "thiomajid/distil_ratio"
+hub_model_id: "thiomajid/flax_xlstm"
 remove_unused_columns: false
+#
