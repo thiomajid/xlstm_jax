@@ -1,3 +1,5 @@
 defaults:
   - model: xlstm
   - trainer: base
+
+dtype: "float32"
