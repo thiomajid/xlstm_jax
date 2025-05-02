@@ -363,7 +363,6 @@ def main(cfg: DictConfig):
         upload_large_folder(
             repo_id=args.hub_model_id,
             folder_path=artifacts_dir,
-            commit_message="Upload model",
             token=args.hub_token,
         )
 
