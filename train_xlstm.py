@@ -13,7 +13,7 @@ import optax
 import orbax.checkpoint as ocp
 from einops import rearrange
 from flax import nnx
-from huggingface_hub import create_repo, repo_exists, upload_large_folder
+from huggingface_hub import create_repo, repo_exists, upload_folder
 from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -360,10 +360,11 @@ def main(cfg: DictConfig):
 
         # Upload the model to the hub
         logger.info(f"Uploading model to {args.hub_model_id}...")
-        upload_large_folder(
+        upload_folder(
             repo_id=args.hub_model_id,
             folder_path=artifacts_dir,
             token=args.hub_token,
+            commit_message="Training completed",
         )
 
 
