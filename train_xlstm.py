@@ -198,9 +198,9 @@ def main(cfg: DictConfig):
             # optax.clip_by_global_norm(1.0),
             optax.adamw(
                 learning_rate=args.learning_rate,
-                # b1=args.adam_beta1,
-                # b2=args.adam_beta2,
-                # weight_decay=args.weight_decay,
+                b1=args.adam_beta1,
+                b2=args.adam_beta2,
+                weight_decay=args.weight_decay,
             ),
         ),
     )
