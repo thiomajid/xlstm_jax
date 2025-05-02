@@ -255,8 +255,15 @@ def main(cfg: DictConfig):
                             }
                         )
 
-                        # update progress bar description
-                        pbar.set_postfix({metric: value.item()})
+                    # update progress bar description
+                    last_loss = history["train_loss"][-1]["value"]
+                    last_ppl = history["train_perplexity"][-1]["value"]
+                    pbar.set_postfix(
+                        {
+                            "train_loss": last_loss,
+                            "train_perplexity": last_ppl,
+                        }
+                    )
 
                     pbar.refresh()
                     metrics.reset()
@@ -267,6 +274,7 @@ def main(cfg: DictConfig):
                     filename = ckpt_dir / f"checkpoint-{global_step}"
                     _, state = nnx.split(model)
                     checkpointer.save(filename, state)
+                    checkpointer.wait_until_finished()
 
             # Evaluate the model after each epoch
             for batch in tqdm(eval_loader, desc="Evaluating"):
@@ -283,8 +291,15 @@ def main(cfg: DictConfig):
                     }
                 )
 
-                # update progress bar description
-                pbar.set_postfix({f"eval_{metric}": value.item()})
+            # update progress bar description
+            last_loss = history["eval_loss"][-1]["value"]
+            last_ppl = history["eval_perplexity"][-1]["value"]
+            pbar.set_postfix(
+                {
+                    "eval_loss": last_loss,
+                    "eval_perplexity": last_ppl,
+                }
+            )
 
             pbar.refresh()
             metrics.reset()
