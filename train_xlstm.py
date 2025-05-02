@@ -223,6 +223,7 @@ def main(cfg: DictConfig):
 
     ckpt_dir = ocp.test_utils.erase_and_create_empty(Path(args.logging_dir).absolute())
     checkpointer = ocp.StandardCheckpointer()
+    CKPT_PREFIX = "state"
 
     # Start training with progress bar being updated and gradient accumulation
     # if needed and descriptive messages
@@ -271,7 +272,7 @@ def main(cfg: DictConfig):
                 if global_step % args.save_steps == 0:
                     # Save the model checkpoint
                     logger.info(f"Saving checkpoint at step {global_step}...")
-                    state_dir = ckpt_dir / f"state-{global_step}"
+                    state_dir = ckpt_dir / f"{CKPT_PREFIX}-{global_step}"
                     state = nnx.state(model)
                     checkpointer.save(state_dir, state)
                     # checkpointer.wait_until_finished()
@@ -338,11 +339,11 @@ def main(cfg: DictConfig):
     logger.info(f"Best checkpoint: {step} with train_perplexity: {ppl_value}")
 
     # copy the checkpoint to artifacts_dir
-    best_ckpt_path = ckpt_dir / f"state-{step}"
-    best_ckpt_path = best_ckpt_path.resolve()
+    best_ckpt_dir_path = ckpt_dir / f"{CKPT_PREFIX}-{step}"
+    best_ckpt_dir_path = best_ckpt_dir_path.resolve()
     shutil.copytree(
-        best_ckpt_path,
-        artifacts_dir / f"state-{step}",
+        best_ckpt_dir_path,
+        artifacts_dir / CKPT_PREFIX,
         dirs_exist_ok=True,
     )
 
