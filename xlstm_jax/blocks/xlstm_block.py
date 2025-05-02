@@ -8,7 +8,7 @@ import jax.numpy as jnp
 from flax import nnx
 from xlstm.blocks.xlstm_block import xLSTMBlock as TorchxLSTMBlock
 
-from src.components.ln import LayerNorm
+from xlstm_jax.components.ln import LayerNorm
 
 from ..components.feedforward import FeedForwardConfig, create_feedforward
 from .mlstm.layer import mLSTMLayer, mLSTMLayerConfig

@@ -22,7 +22,7 @@ from xlstm import (
     xLSTMLMModelConfig as TorchxLSTMLMModelConfig,
 )
 
-from src import (
+from xlstm_jax import (
     FeedForwardConfig,
     mLSTMBlockConfig,
     mLSTMLayerConfig,

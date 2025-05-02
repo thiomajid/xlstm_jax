@@ -9,8 +9,8 @@ import jax.numpy as jnp
 from flax import nnx
 from xlstm import xLSTMBlockStack as TorchxLSTMBlockStack
 
-from src.components.ln import LayerNorm
-from src.components.util import Identity
+from xlstm_jax.components.ln import LayerNorm
+from xlstm_jax.components.util import Identity
 
 from .blocks.mlstm.block import mLSTMBlock, mLSTMBlockConfig
 from .blocks.slstm.block import sLSTMBlock, sLSTMBlockConfig

@@ -5,7 +5,7 @@ import numpy as np
 import orbax.checkpoint as ocp
 from flax import nnx
 
-from src.utils import filter_prng_keys
+from xlstm_jax.utils import filter_prng_keys
 from tests.utils import create_jax_model
 
 if __name__ == "__main__":

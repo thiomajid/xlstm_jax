@@ -8,7 +8,7 @@ import jax.numpy as jnp
 from flax import nnx
 from xlstm import xLSTMLMModel as TorchxLSTMLMModel
 
-from src.components.util import Identity
+from xlstm_jax.components.util import Identity
 
 from .components.init import small_init_initializer
 from .utils import WeightDecayOptimGroupMixin

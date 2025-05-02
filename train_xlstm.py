@@ -23,10 +23,10 @@ from transformers import (
     HfArgumentParser,
 )
 
-from src import xLSTMLMModel
-from src._trainer.arguments import CustomArgs
-from src._trainer.data import get_dataset
-from src.utils import filter_prng_keys, parse_xlstm_config_dict, str2dtype
+from xlstm_jax import xLSTMLMModel
+from xlstm_jax._trainer.arguments import CustomArgs
+from xlstm_jax._trainer.data import get_dataset
+from xlstm_jax.utils import filter_prng_keys, parse_xlstm_config_dict, str2dtype
 
 
 def loss_fn(model: xLSTMLMModel, batch: tuple[jnp.ndarray, ...]):
@@ -129,7 +129,7 @@ def main(cfg: DictConfig):
     dtype_str = cfg["dtype"]
     logger.info(f"Creating xLSTM model with dtype={dtype_str}...")
     dtype = str2dtype(dtype_str)
-    rngs = nnx.Rngs(args.seed, params=jax.random.key(args.seed))
+    rngs = nnx.Rngs(args.seed)
     model = xLSTMLMModel(config, rngs=rngs, dtype=dtype)
 
     logger.info(
