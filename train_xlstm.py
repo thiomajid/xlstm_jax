@@ -195,7 +195,7 @@ def main(cfg: DictConfig):
     optimizer = nnx.Optimizer(
         model,
         optax.chain(
-            optax.clip_by_global_norm(1.0),
+            # optax.clip_by_global_norm(1.0),
             optax.adamw(
                 learning_rate=args.learning_rate,
                 # b1=args.adam_beta1,
