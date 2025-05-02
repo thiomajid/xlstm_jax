@@ -38,20 +38,3 @@ year={2024},
 url={https://github.com/thiomajid/xlstm_jax/},
 }
 ```
-
-# o4-mini proposal
-
-def filter_prng_keys(pytree):
-"""Recursively drop entire 'rngs' sub‑trees and null out any PRNGKey leaves.""" # If this node is a dict, we rebuild it without any 'rngs' keys
-if isinstance(pytree, dict):
-return {
-k: filter_prng_keys(v)
-for k, v in pytree.items()
-if k != "rngs"
-} # Otherwise map over the leaves and null out any PRNGKey arrays
-return jax.tree_map(
-lambda x: None
-if hasattr(x, "dtype") and str(x.dtype).startswith("key<")
-else x,
-pytree,
-)

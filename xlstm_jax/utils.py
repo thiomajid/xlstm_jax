@@ -192,12 +192,20 @@ def str2dtype(dtype_str: str) -> jnp.dtype:
     return _dtype_map[dtype_str]
 
 
+def is_jax_prng_key(x):
+    """Checks if an object is a JAX PRNGKey."""
+    # Use the canonical way to check for JAX PRNGKey dtypes
+    return isinstance(x, jax.Array) and jax.dtypes.issubdtype(
+        x.dtype, jax.dtypes.prng_key
+    )
+
+
 def filter_prng_keys(pytree):
+    """Recursively filters out JAX PRNGKeys from a pytree, replacing them with None."""
     return jax.tree.map(
-        lambda x: None
-        if hasattr(x, "dtype") and str(x.dtype).startswith("key<")
-        else x,
+        lambda x: None if is_jax_prng_key(x) else x,
         pytree,
+        is_leaf=is_jax_prng_key,  # Treat keys as leaves to prevent recursion into them
     )
 
 
