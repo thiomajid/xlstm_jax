@@ -126,8 +126,9 @@ def main(cfg: DictConfig):
     config.pad_token_id = tokenizer.pad_token_id
 
     # Model instance
-    logger.info("Creating xLSTM model...")
-    dtype = str2dtype(cfg["dtype"])
+    dtype_str = cfg["dtype"]
+    logger.info(f"Creating xLSTM model with dtype={dtype_str}...")
+    dtype = str2dtype(dtype_str)
     rngs = nnx.Rngs(args.seed, params=jax.random.key(args.seed))
     model = xLSTMLMModel(config, rngs=rngs, dtype=dtype)
 
@@ -211,7 +212,7 @@ def main(cfg: DictConfig):
         perplexity=nnx.metrics.Average("perplexity"),
     )
 
-    history: dict[str, list[dict[int, float]]] = {
+    history: dict[str, list[dict[str, float]]] = {
         "train_loss": [],
         "train_perplexity": [],
         "eval_loss": [],
@@ -247,7 +248,12 @@ def main(cfg: DictConfig):
                 if global_step % args.logging_steps == 0:
                     # Log the metrics
                     for metric, value in metrics.compute().items():
-                        history[f"train_{metric}"].append({global_step: value.item()})
+                        history[f"train_{metric}"].append(
+                            {
+                                "step": global_step,
+                                "value": value.item(),
+                            }
+                        )
 
                         # update progress bar description
                         pbar.set_postfix({metric: value.item()})
@@ -270,7 +276,12 @@ def main(cfg: DictConfig):
                 eval_step(model=model, batch=_batch, metrics=metrics)
 
             for metric, value in metrics.compute().items():
-                history[f"eval_{metric}"].append({global_step: value.item()})
+                history[f"eval_{metric}"].append(
+                    {
+                        "step": global_step,
+                        "value": value.item(),
+                    }
+                )
 
                 # update progress bar description
                 pbar.set_postfix({f"eval_{metric}": value.item()})
@@ -301,11 +312,13 @@ def main(cfg: DictConfig):
 
     # sort the train_ppl by value in ascending order
     sorted_train_ppl = sorted(
-        train_ppl, key=lambda x: list(x.values())[0], reverse=False
+        train_ppl,
+        key=lambda x: x["value"],
     )
+
     best_ckpt = sorted_train_ppl[0]
-    step = list(best_ckpt.keys())[0]
-    ppl_value = list(best_ckpt.values())[0]
+    step = int(best_ckpt["step"])
+    ppl_value = best_ckpt["value"]
     logger.info(f"Best checkpoint: {step} with train_perplexity: {ppl_value}")
 
     # copy the checkpoint to artifacts_dir
