@@ -226,7 +226,7 @@ def load_model_from_checkpoint(
 
     checkpointer = ocp.StandardCheckpointer()
     restored_state = checkpointer.restore(checkpoint_path)
-    nnx.replace_by_pure_dict(abstract_state, restored_state)
+    # nnx.replace_by_pure_dict(abstract_state, restored_state)
     merged_model = nnx.merge(graphdef, restored_state)
     print("Merged state with the model.")
     return merged_model

@@ -87,7 +87,7 @@ def eval_step(
     metrics.update(loss=loss, perplexity=perplexity)
 
 
-@hydra.main(config_path="./configs", config_name="train_config")
+@hydra.main(config_path="./configs", config_name="train_config", version_base="1.1")
 def main(cfg: DictConfig):
     # Set up logging
     logging.basicConfig(
@@ -270,7 +270,8 @@ def main(cfg: DictConfig):
                     # Save the model checkpoint
                     logger.info(f"Saving checkpoint at step {global_step}...")
                     state_dir = ckpt_dir / f"{CKPT_PREFIX}-{global_step}"
-                    state = nnx.to_pure_dict(nnx.state(model))
+                    # state = nnx.to_pure_dict(nnx.state(model))
+                    state = nnx.state(model)
                     checkpointer.save(state_dir, state)  # Save filtered state
 
             # Evaluate the model after each epoch

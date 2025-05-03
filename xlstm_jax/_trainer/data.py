@@ -64,7 +64,7 @@ def get_dataset(
                 hub_url,
                 subset,
                 split=split,
-                streaming=True,
+                streaming=True if num_samples != "all" else False,
                 token=token,
                 trust_remote_code=trust_remote_code,
             )
@@ -72,7 +72,7 @@ def get_dataset(
             data_stream = load_dataset(
                 hub_url,
                 split=split,
-                streaming=True,
+                streaming=True if num_samples != "all" else False,
                 token=token,
                 trust_remote_code=trust_remote_code,
             )
