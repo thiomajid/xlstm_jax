@@ -32,8 +32,12 @@ def _generation_step_body(
 
     # --- Logit Selection ---
     logits_slice = jax.lax.dynamic_slice(
-        out, (0, current_index - 1, 0), (batch_size, 1, vocab_size)
+        out,
+        start_indices=(0, current_index - 1, 0),  # Last token logits
+        slice_sizes=(batch_size, 1, vocab_size),  # whole batch, 1 token, vocab size
     )
+
+    # (B, 1, V) -> (B, V)
     last_token_logits = jnp.squeeze(logits_slice, axis=1)
 
     # --- Sampling ---
@@ -57,7 +61,8 @@ def _generation_step_body(
 
     next_token = next_token.astype(jnp.int32)
 
-    # --- State Update ---
+    # --- State update ---
+    # Update the full sequence array with the new token
     updated_full_x = jax.lax.dynamic_update_slice(
         current_full_x, next_token[:, None], (0, current_index)
     )
