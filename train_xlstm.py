@@ -219,7 +219,7 @@ def main(cfg: DictConfig):
     # checkpoint manager
 
     ckpt_dir = ocp.test_utils.erase_and_create_empty(Path(args.logging_dir).absolute())
-    checkpointer = ocp.StandardCheckpointer()
+    checkpointer = ocp.PyTreeCheckpointer()
     CKPT_PREFIX = "state"
 
     # Start training with progress bar being updated and gradient accumulation
@@ -303,7 +303,6 @@ def main(cfg: DictConfig):
             metrics.reset()
 
     logger.info("Training completed.")
-    checkpointer.wait_until_finished()
 
     logger.info("Saving final model...")
     # save metrics to a json file
