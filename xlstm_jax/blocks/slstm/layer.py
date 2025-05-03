@@ -95,11 +95,9 @@ class sLSTMLayer(nnx.Module):
 
         self.dropout = nnx.Dropout(rate=self.config.dropout, rngs=rngs)
 
-    # @functools.partial(nnx.jit, static_argnames=("return_last_state",))
     def __call__(
         self,
         x: jnp.ndarray,
-        conv_state: tp.Optional[tuple[jnp.ndarray, ...]] = None,
         slstm_state: tp.Optional[jnp.ndarray] = None,
         return_last_state: bool = False,
     ) -> tp.Union[jnp.ndarray, tuple[jnp.ndarray, dict[str, tp.Any]]]:
@@ -117,16 +115,18 @@ class sLSTMLayer(nnx.Module):
         B, S, _ = x.shape
 
         # Apply convolution if configured
-        if self.config.conv1d_kernel_size > 0:
-            if return_last_state:
-                x_conv, conv_state = self.conv1d(
-                    x, conv_state, return_last_state=return_last_state
-                )
-            else:
-                x_conv = self.conv1d(x, conv_state, return_last_state=return_last_state)
-            x_conv = jax.nn.swish(x_conv)  # SiLU is the same as swish
-        else:
-            x_conv = x
+        # if self.config.conv1d_kernel_size > 0:
+        #     x_conv = self.conv1d(x)
+        #     x_conv = jax.nn.swish(x_conv)  # SiLU is the same as swish
+        # else:
+        #     x_conv = x
+
+        x_conv = jax.lax.cond(
+            self.config.conv1d_kernel_size > 0,
+            lambda _x: jax.nn.swish(self.conv1d(_x)),
+            lambda _x: _x,
+            operand=x,
+        )
 
         # Apply gate projections
         f = self.fgate(x_conv)
@@ -145,7 +145,7 @@ class sLSTMLayer(nnx.Module):
         out = out.transpose(0, 2, 1, 3).reshape(B, S, -1)
 
         if return_last_state:
-            return out, {"conv_state": conv_state, "slstm_state": slstm_state}
+            return out, {"slstm_state": slstm_state}
         else:
             return out
 

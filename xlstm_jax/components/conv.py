@@ -2,7 +2,7 @@
 # Maximilian Beck, Korbinian Pöppel
 # Converted to JAX/Flax by Abdoul Majid O. Thiombiano
 from dataclasses import dataclass, field
-from typing import Any, Optional, Tuple
+from typing import Any, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -55,15 +55,14 @@ class CausalConv1d(nnx.Module):
             # No convolution needed
             self.conv = None
         else:
-            self.pad = (
-                self.config.kernel_size - 1
-            )  # padding of this size assures temporal causality.
+            # padding of this size assures temporal causality.
+            self.pad = self.config.kernel_size - 1
 
             self.conv = nnx.Conv(
                 in_features=self.config.feature_dim,
                 out_features=self.config.feature_dim,
-                kernel_size=self.config.kernel_size,
-                padding=self.pad,
+                kernel_size=(self.config.kernel_size,),
+                padding=[(self.pad, 0)],
                 feature_group_count=self.groups,
                 kernel_init=jax.nn.initializers.lecun_normal(),
                 use_bias=self.config.causal_conv_bias,
@@ -72,42 +71,12 @@ class CausalConv1d(nnx.Module):
                 dtype=self.dtype,
             )
 
-    def __call__(
-        self,
-        x: jnp.ndarray,
-        conv_state: Optional[jnp.ndarray] = None,
-        return_last_state: bool = False,
-    ) -> jnp.ndarray | Tuple[jnp.ndarray, jnp.ndarray]:
-        if conv_state is not None:
-            x = jnp.concatenate([conv_state, x], axis=1)
-
+    def __call__(self, x: jnp.ndarray):
         if self.config.kernel_size == 0:
-            if return_last_state:
-                return x, None
             return x
 
-        y = x  # With nnx.Conv the feature dimension is the last one so no need to transpose
-        y = self.conv(y)  # (B, T+pad, F) tensor
-
-        # Handle the case when conv_state is provided
-        if conv_state is not None:
-            y = y[:, conv_state.shape[1] :, :]
-
-        # output = jnp.transpose(y[:, :, : -self.pad], (0, 2, 1))
-        # no need to transpose since the feature dimension is already the last one
-        # and no transposition was done pre convolution
-        output = y[:, : -self.pad, :]  # the time dimension is the second one
-
-        if return_last_state:
-            last_state = jax.lax.cond(
-                self.pad > 0,
-                lambda: x[:, -self.pad :],
-                lambda: None,
-            )
-
-            return output, last_state
-        else:
-            return output
+        # With nnx.Conv the feature dimension is the last one so no need to transpose
+        return self.conv(x)  # (B, T+pad, F) tensor
 
     def reset_parameters(self, rngs: nnx.Rngs):
         """Reset the parameters of the convolutional layer."""

@@ -343,6 +343,9 @@ def main(cfg: DictConfig):
         dirs_exist_ok=True,
     )
 
+    # save the tokenizer
+    tokenizer.save_pretrained(artifacts_dir)
+
     if args.push_to_hub:
         logger.info("Pushing model to Hugging Face Hub...")
         if not repo_exists(args.hub_model_id, token=args.hub_token):

@@ -123,15 +123,11 @@ class xLSTMBlock(nnx.Module):
             Output tensor of shape (B, S, D)
         """
         x = x + self.xlstm(self.xlstm_norm(x))
+
+        # can't use lax.cond here because when evaluated, on a branch, the
+        # ffn is None, so it will not be called
         if self.ffn is not None:
             x = x + self.ffn(self.ffn_norm(x))
-
-        # x = lax.cond(
-        #     self.ffn is not None,
-        #     lambda x: x + self.ffn(self.ffn_norm(x)),
-        #     lambda x: x,
-        #     x,
-        # )
 
         return x
 
