@@ -12,6 +12,7 @@ if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained("HuggingFaceTB/SmolLM2-135M-Instruct")
     text = "The quick brown fox jumps over the lazy dog"
     input_ids: jnp.ndarray = tokenizer(text, return_tensors="jax")["input_ids"]
+    input_ids = jnp.array(input_ids, dtype=jnp.int32)
 
     # run inference
     outputs = model(input_ids)
