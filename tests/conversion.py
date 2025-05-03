@@ -36,7 +36,7 @@ def test_nnx_model_matches_torch_one():
     batch_size = x.shape[0]
     full_x_init = jnp.zeros((batch_size, final_len), dtype=jnp.int32)
     full_x_init = full_x_init.at[:, :initial_len].set(x)
-    key = jax.random.PRNGKey(SEED)
+    key = jax.random.key(SEED)
     initial_carry_val = (full_x_init, initial_len, key)
     vocab_size = config.vocab_size
 
@@ -117,21 +117,21 @@ def test_nnx_model_matches_torch_one():
     )
     print(f"The outputs are equal (expected {expected_equal}): {equal}")
 
-    for i in range(torch_x.shape[0]):
-        seq_equal = np.allclose(
-            torch_x[i].clone().detach().cpu().numpy(),
-            np.array(jax.device_get(x[i])),
-            rtol=1e-4,
-            atol=1e-4,
-        )
-        print(
-            f"The outputs are equal for sequence {i} (expected {expected_equal}): {seq_equal}"
-        )
-        if not seq_equal or i < 2:
-            print(
-                f"Predicted torch sequence {i}: {torch_x[i].clone().detach().cpu().numpy()}"
-            )
-            print(f"Predicted jax sequence {i}: {np.array(jax.device_get(x[i]))}")
+    # for i in range(torch_x.shape[0]):
+    #     seq_equal = np.allclose(
+    #         torch_x[i].clone().detach().cpu().numpy(),
+    #         np.array(jax.device_get(x[i])),
+    #         rtol=1e-4,
+    #         atol=1e-4,
+    #     )
+    #     print(
+    #         f"The outputs are equal for sequence {i} (expected {expected_equal}): {seq_equal}"
+    #     )
+    #     if not seq_equal or i < 2:
+    #         print(
+    #             f"Predicted torch sequence {i}: {torch_x[i].clone().detach().cpu().numpy()}"
+    #         )
+    #         print(f"Predicted jax sequence {i}: {np.array(jax.device_get(x[i]))}")
 
 
 if __name__ == "__main__":

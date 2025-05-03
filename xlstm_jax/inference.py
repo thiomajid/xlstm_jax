@@ -4,12 +4,18 @@ import jax
 import jax.numpy as jnp
 from flax import nnx
 
+GenerationCarry = tuple[
+    jnp.ndarray,  # The full sequence array
+    int,  # The current index in the sequence
+    jax.random.PRNGKey,  # The current PRNG key
+]
+
 
 # Define the generation step function globally or inside the jitted function
 # Making it standalone allows for cleaner separation
 def _generation_step_body(
     model: nnx.Module,  # Pass the model object
-    carry: tuple,
+    carry: GenerationCarry,
     _,  # Loop variable from scan, unused
     vocab_size: int,
     temperature: float,
@@ -70,7 +76,7 @@ def _generation_step_body(
 )
 def generate_sequence_scan(
     model: nnx.Module,
-    initial_carry_val: tuple,
+    initial_carry_val: GenerationCarry,
     max_new_tokens: int,
     vocab_size: int,
     temperature: float = 1.0,
