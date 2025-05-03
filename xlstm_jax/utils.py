@@ -225,7 +225,7 @@ def load_model_from_checkpoint(
         raise FileNotFoundError(f"Checkpoint path {checkpoint_path} does not exist.")
 
     checkpointer = ocp.PyTreeCheckpointer()
-    restored_state = checkpointer.restore(checkpoint_path)
+    restored_state = checkpointer.restore(checkpoint_path, abstract_state)
     # nnx.replace_by_pure_dict(abstract_state, restored_state)
     merged_model = nnx.merge(graphdef, restored_state)
     print("Merged state with the model.")

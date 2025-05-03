@@ -3,7 +3,7 @@
 # Converted to JAX/Flax by Abdoul Majid O. Thiombiano
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import List, Literal, Optional, Union
 
 import jax.numpy as jnp
 from flax import nnx
@@ -168,7 +168,6 @@ class xLSTMBlockStack(nnx.Module):
         x = self.post_blocks_norm(x)
 
         return x
-
 
     def reset_parameters(self, rngs: nnx.Rngs) -> None:
         for block in self.blocks:
