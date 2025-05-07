@@ -25,6 +25,11 @@ dev = [
     "xlstm>=2.0.3",
 ]
 
+
+[tool.setuptools]
+packages = ["xlstm_jax"]
+
+
 # [tool.pyright]
 # exclude = ["torch_xlstm/**"]
 # reportMissingImports = false
