@@ -213,8 +213,6 @@ class MultiHeadLayerNorm(nnx.Module):
     ) -> jnp.ndarray:
         chex.assert_equal(x.ndim, 4)
 
-        nnx.GroupNorm
-
         B, NH, S, DH = x.shape
 
         # Rearrange from (B, NH, S, DH) to (B, S, NH, DH)

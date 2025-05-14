@@ -75,7 +75,6 @@ class mLSTMCell(nnx.Module):
             )
         )
 
-    # @nnx.jit
     def __call__(
         self,
         q: jnp.ndarray,

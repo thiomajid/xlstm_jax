@@ -139,7 +139,6 @@ class mLSTMLayer(nnx.Module):
 
         self.dropout = nnx.Dropout(rate=self.config.dropout, rngs=rngs)
 
-    # @nnx.jit
     def __call__(self, x: jnp.ndarray):
         """Forward pass for processing a full sequence.
 

@@ -11,7 +11,7 @@ import jax
 import jax.numpy as jnp
 import orbax.checkpoint as ocp
 from flax import nnx
-from xlstm import (
+from . import (
     FeedForwardConfig,
     mLSTMBlockConfig,
     mLSTMLayerConfig,

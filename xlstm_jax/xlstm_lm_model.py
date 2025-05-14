@@ -21,7 +21,7 @@ class xLSTMLMModelConfig(xLSTMBlockStackConfig):
     add_embedding_dropout: bool = False
 
 
-class xLSTMLMModel(WeightDecayOptimGroupMixin, nnx.Module):
+class xLSTMLMModel(nnx.Module):
     """Language model using xLSTM blocks as its backbone.
 
     This model combines token embeddings with an xLSTM block stack
@@ -93,7 +93,6 @@ class xLSTMLMModel(WeightDecayOptimGroupMixin, nnx.Module):
                 init_fn=lambda key, shape: small_init(key, shape, dtype=self.dtype),
             )
 
-    # @nnx.jit
     def __call__(self, input_ids: jnp.ndarray) -> jnp.ndarray:
         """Forward pass through the model.
 
@@ -125,59 +124,59 @@ class xLSTMLMModel(WeightDecayOptimGroupMixin, nnx.Module):
 
     
 
-    def get_param_groups_for_optimizer(self, weight_decay=0.01):
-        """Create parameter groups for optimization with weight decay control.
+    # def get_param_groups_for_optimizer(self, weight_decay=0.01):
+    #     """Create parameter groups for optimization with weight decay control.
 
-        This replaces the WeightDecayOptimGroupMixin from PyTorch.
+    #     This replaces the WeightDecayOptimGroupMixin from PyTorch.
 
-        Args:
-            weight_decay: Weight decay value to apply
+    #     Args:
+    #         weight_decay: Weight decay value to apply
 
-        Returns:
-            Dictionary of parameter groups with different optimization settings
-        """
-        # Get all parameters
+    #     Returns:
+    #         Dictionary of parameter groups with different optimization settings
+    #     """
+    #     # Get all parameters
 
-        # Parameters that should have weight decay applied
-        decay_params = []
-        # Parameters that should not have weight decay
-        no_decay_params = []
+    #     # Parameters that should have weight decay applied
+    #     decay_params = []
+    #     # Parameters that should not have weight decay
+    #     no_decay_params = []
 
-        # Sort parameters based on parameter path
-        for path, param in self.named_parameters():
-            # Skip parameters already in a group
-            if param in decay_params or param in no_decay_params:
-                continue
+    #     # Sort parameters based on parameter path
+    #     for path, param in self.named_parameters():
+    #         # Skip parameters already in a group
+    #         if param in decay_params or param in no_decay_params:
+    #             continue
 
-            # Parameters that should not have weight decay applied
-            if (
-                "bias" in path
-                or "ln" in path  # layer norms
-                or "norm" in path  # other normalizations
-                or "pos_embedding" in path  # positional embeddings
-            ):
-                no_decay_params.append(param)
-            else:
-                decay_params.append(param)
+    #         # Parameters that should not have weight decay applied
+    #         if (
+    #             "bias" in path
+    #             or "ln" in path  # layer norms
+    #             or "norm" in path  # other normalizations
+    #             or "pos_embedding" in path  # positional embeddings
+    #         ):
+    #             no_decay_params.append(param)
+    #         else:
+    #             decay_params.append(param)
 
-        # Handle embedding weight according to config
-        embedding_weight = self.get_embedding_weight()
+    #     # Handle embedding weight according to config
+    #     embedding_weight = self.get_embedding_weight()
 
-        # Remove from current groups if present
-        if embedding_weight in decay_params:
-            decay_params.remove(embedding_weight)
-        if embedding_weight in no_decay_params:
-            no_decay_params.remove(embedding_weight)
+    #     # Remove from current groups if present
+    #     if embedding_weight in decay_params:
+    #         decay_params.remove(embedding_weight)
+    #     if embedding_weight in no_decay_params:
+    #         no_decay_params.remove(embedding_weight)
 
-        # Add to the appropriate group based on config
-        if self.config.weight_decay_on_embedding:
-            decay_params.append(embedding_weight)
-        else:
-            no_decay_params.append(embedding_weight)
+    #     # Add to the appropriate group based on config
+    #     if self.config.weight_decay_on_embedding:
+    #         decay_params.append(embedding_weight)
+    #     else:
+    #         no_decay_params.append(embedding_weight)
 
-        # Return parameter groups
-        return {
-            "params_with_weight_decay": decay_params,
-            "params_without_weight_decay": no_decay_params,
-            "weight_decay": weight_decay,
-        }
+    #     # Return parameter groups
+    #     return {
+    #         "params_with_weight_decay": decay_params,
+    #         "params_without_weight_decay": no_decay_params,
+    #         "weight_decay": weight_decay,
+    #     }

@@ -146,17 +146,5 @@ class LinearHeadwiseExpand(nnx.Module):
                 )
             )
 
-    def __repr__(self):
-        """Return a string representation of the module."""
-        return (
-            f"{self.__class__.__name__}("
-            f"in_features={self.config.in_features}, "
-            f"num_heads={self.config.num_heads}, "
-            f"expand_factor_up={self.config.expand_factor_up}, "
-            f"out_features={self.config._out_features}, "
-            f"bias={self.config.bias}, "
-            f"trainable_weight={self.config.trainable_weight}, "
-            f"trainable_bias={self.config.trainable_bias})"
-        )
 
     

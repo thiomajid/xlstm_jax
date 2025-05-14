@@ -103,16 +103,16 @@ class CausalConv1d(nnx.Module):
                 )
             )
 
-    def _create_weight_decay_optim_groups(
-        self,
-    ) -> tuple[tuple[nnx.Param, ...], tuple[nnx.Param, ...]]:
-        if self.config.kernel_size == 0:
-            return (), ()
-        else:
-            weight_decay = (self.conv.kernel,)
-            no_weight_decay = ()
-            if self.config.causal_conv_bias and self.bias is not None:
-                no_weight_decay = (self.conv.bias,)
-            return weight_decay, no_weight_decay
+    # def _create_weight_decay_optim_groups(
+    #     self,
+    # ) -> tuple[tuple[nnx.Param, ...], tuple[nnx.Param, ...]]:
+    #     if self.config.kernel_size == 0:
+    #         return (), ()
+    #     else:
+    #         weight_decay = (self.conv.kernel,)
+    #         no_weight_decay = ()
+    #         if self.config.causal_conv_bias and self.bias is not None:
+    #             no_weight_decay = (self.conv.bias,)
+    #         return weight_decay, no_weight_decay
 
     
