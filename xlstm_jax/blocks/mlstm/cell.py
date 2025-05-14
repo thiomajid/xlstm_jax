@@ -6,7 +6,6 @@ from dataclasses import dataclass
 import jax
 import jax.numpy as jnp
 from flax import nnx
-from xlstm.blocks.mlstm.cell import mLSTMCell as TorchmLSTMCell
 
 from ...components.init import bias_linspace_initializer
 from ...components.ln import MultiHeadLayerNorm
@@ -156,18 +155,4 @@ class mLSTMCell(nnx.Module):
         self.igate.kernel = nnx.Param(jnp.zeros_like(self.igate.kernel))
         self.igate.bias = nnx.Param(jnp.zeros_like(self.igate.bias))
 
-    def load_from_torch(self, cell: TorchmLSTMCell):
-        """Load weights from a PyTorch mLSTM cell."""
-        # Load weights and biases from the PyTorch model
-        self.igate.kernel = nnx.Param(jnp.array(cell.igate.weight.detach().T.numpy()))
-        self.igate.bias = nnx.Param(jnp.array(cell.igate.bias.detach().numpy()))
 
-        self.fgate.kernel = nnx.Param(jnp.array(cell.fgate.weight.detach().T.numpy()))
-        self.fgate.bias = nnx.Param(jnp.array(cell.fgate.bias.detach().numpy()))
-
-        self.outnorm.load_from_torch(cell.outnorm)
-
-        # Load the causal mask
-        # self.causal_mask = nnx.Param(
-        #     jnp.array(cell.get_buffer("causal_mask").detach().numpy())
-        # )

@@ -8,7 +8,6 @@ from typing import List, Literal, Optional, Union
 import jax
 import jax.numpy as jnp
 from flax import nnx
-from xlstm import xLSTMBlockStack as TorchxLSTMBlockStack
 
 from xlstm_jax.components.ln import LayerNorm
 from xlstm_jax.components.util import Identity
@@ -182,13 +181,4 @@ class xLSTMBlockStack(nnx.Module):
         if not isinstance(self.post_blocks_norm, Identity):
             self.post_blocks_norm.reset_parameters(rngs)
 
-    def load_from_torch(self, stack: TorchxLSTMBlockStack):
-        """Load parameters from a PyTorch xLSTM block stack.
-
-        Args:
-            stack: PyTorch xLSTM block stack to load parameters from
-        """
-        for block, torch_block in zip(self.blocks, stack.blocks):
-            block.load_from_torch(torch_block)
-        if not isinstance(self.post_blocks_norm, Identity):
-            self.post_blocks_norm.load_from_torch(stack.post_blocks_norm)
+    

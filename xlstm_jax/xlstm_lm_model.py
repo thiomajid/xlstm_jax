@@ -5,7 +5,6 @@ from dataclasses import dataclass
 
 import jax.numpy as jnp
 from flax import nnx
-from xlstm import xLSTMLMModel as TorchxLSTMLMModel
 
 from xlstm_jax.components.util import Identity
 
@@ -124,34 +123,7 @@ class xLSTMLMModel(WeightDecayOptimGroupMixin, nnx.Module):
 
         return logits
 
-    def load_from_torch(self, torch_model: TorchxLSTMLMModel):
-        """Load weights from a PyTorch xLSTM model.
-
-        Args:
-            torch_model: PyTorch xLSTM model to load weights from
-        """
-        # embedding layer
-        self.token_embedding.embedding = nnx.Param(
-            jnp.array(torch_model.token_embedding.weight.detach().numpy())
-        )
-
-        self.xlstm_block_stack.load_from_torch(torch_model.xlstm_block_stack)
-
-        if not self.config.tie_weights:
-            # lm_head layer
-            self.lm_head.kernel = nnx.Param(
-                jnp.array(torch_model.lm_head.weight.detach().T.numpy())
-            )
-
-            if torch_model.lm_head.bias is not None:
-                self.lm_head.bias = nnx.Param(
-                    jnp.array(torch_model.lm_head.bias.detach().numpy())
-                )
-        else:
-            # shared weight layer
-            self.shared_weight = nnx.Param(
-                jnp.array(torch_model.lm_head.weight.detach().T.numpy())
-            )
+    
 
     def get_param_groups_for_optimizer(self, weight_decay=0.01):
         """Create parameter groups for optimization with weight decay control.

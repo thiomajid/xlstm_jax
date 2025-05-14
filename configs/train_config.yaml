@@ -1,6 +1,0 @@
-defaults:
-  - _self_
-  - model: xlstm
-  - trainer: base
-
-dtype: "float32"

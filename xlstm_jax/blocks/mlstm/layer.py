@@ -7,7 +7,6 @@ from typing import Optional
 import jax
 import jax.numpy as jnp
 from flax import nnx
-from xlstm.blocks.mlstm.layer import mLSTMLayer as TorchmLSTMLayer
 
 from ...components.conv import CausalConv1d, CausalConv1dConfig
 from ...components.init import small_init_initializer, wang_initializer
@@ -228,40 +227,4 @@ class mLSTMLayer(nnx.Module):
 
         self.mlstm_cell.reset_parameters(rngs)
 
-    def load_from_torch(self, layer: TorchmLSTMLayer):
-        """Load parameters from a PyTorch mLSTMLayer."""
-
-        # proj_up
-        self.proj_up.kernel = nnx.Param(
-            jnp.array(layer.proj_up.weight.detach().T.numpy())
-        )
-        if self.proj_up.bias is not None:
-            self.proj_up.bias = nnx.Param(
-                jnp.array(layer.proj_up.bias.detach().numpy())
-            )
-
-        # proj_down
-        self.proj_down.kernel = nnx.Param(
-            jnp.array(layer.proj_down.weight.detach().T.numpy())
-        )
-
-        if self.proj_down.bias is not None:
-            self.proj_down.bias = nnx.Param(
-                jnp.array(layer.proj_down.bias.detach().numpy())
-            )
-
-        # learnable_skip
-        self.learnable_skip = nnx.Param(
-            jnp.array(layer.learnable_skip.detach().numpy())
-        )
-
-        # QKV projections
-        self.q_proj.load_from_torch(layer.q_proj)
-        self.k_proj.load_from_torch(layer.k_proj)
-        self.v_proj.load_from_torch(layer.v_proj)
-
-        # Convolutional layer
-        self.conv1d.load_from_torch(layer.conv1d)
-
-        # mLSTM cell
-        self.mlstm_cell.load_from_torch(layer.mlstm_cell)
+    

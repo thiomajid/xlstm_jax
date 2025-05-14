@@ -7,7 +7,6 @@ from typing import Callable, Literal
 import jax
 import jax.numpy as jnp
 from flax import nnx
-from xlstm.components.feedforward import GatedFeedForward as TorchGatedFeedForward
 
 from ..utils import UpProjConfigMixin
 from .init import small_init_initializer, wang_initializer
@@ -152,43 +151,7 @@ class GatedFeedForward(nnx.Module):
                 )
             )
 
-    def load_from_torch(self, torch_ff: TorchGatedFeedForward) -> None:
-        """Load weights from a PyTorch GatedFeedForward module."""
-        # Load weights and biases from the PyTorch model
-        # Transpose PyTorch weights (out, in) -> Flax kernel (in, out)
 
-        self.proj_up.kernel = nnx.Param(
-            jnp.array(
-                torch_ff.proj_up.weight.T.detach().numpy(),
-                dtype=self.proj_up.kernel.dtype,
-            )
-        )
-
-        if self.proj_up.bias is not None:
-            # Bias vectors (out,) do not need transpose
-            self.proj_up.bias = nnx.Param(
-                jnp.array(
-                    torch_ff.proj_up.bias.detach().numpy(),
-                    dtype=self.proj_up.bias.dtype,
-                )
-            )
-
-        # Transpose PyTorch weights (out, in) -> Flax kernel (in, out)
-        self.proj_down.kernel = nnx.Param(
-            jnp.array(
-                torch_ff.proj_down.weight.T.detach().numpy(),
-                dtype=self.proj_down.kernel.dtype,
-            )
-        )
-
-        if self.proj_down.bias is not None:
-            # Bias vectors (out,) do not need transpose
-            self.proj_down.bias = nnx.Param(
-                jnp.array(
-                    torch_ff.proj_down.bias.detach().numpy(),
-                    dtype=self.proj_down.bias.dtype,
-                )
-            )
 
 
 def create_feedforward(config: FeedForwardConfig, rngs: nnx.Rngs, dtype=jnp.float32):

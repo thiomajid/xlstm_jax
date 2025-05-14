@@ -9,7 +9,6 @@ import chex
 import jax
 import jax.numpy as jnp
 from flax import nnx
-from xlstm.blocks.slstm.cell import sLSTMCell_vanilla as TorchsLSTMCell
 
 from .src.vanilla import (
     slstm_forward,
@@ -491,16 +490,7 @@ class sLSTMCell_vanilla(sLSTMCellBase):
             self.pointwise,
         )[0]
 
-    def load_from_torch(self, cell: TorchsLSTMCell):
-        """Load weights from a PyTorch sLSTM cell."""
-        # Load recurrent kernel
-        self._recurrent_kernel_ = nnx.Param(
-            jnp.array(cell._recurrent_kernel.data.numpy())
-        )
-
-        # Load bias
-        self._bias_ = nnx.Param(jnp.array(cell._bias.detach().numpy()))
-
+    
 
 class sLSTMCell(nnx.Module):
     """Factory class for sLSTM cell that returns vanilla implementation."""

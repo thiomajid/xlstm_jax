@@ -2,21 +2,20 @@
 # Maximilian Beck, Korbinian Pöppel
 # Converted to JAX/Flax by Abdoul Majid O. Thiombiano
 from dataclasses import dataclass, field
-from typing import Any, Tuple
+import typing as tp
 
 import jax
 import jax.numpy as jnp
 from flax import nnx
-from xlstm.components.conv import CausalConv1d as TorchCausalConv1d
 
 
 @dataclass
 class CausalConv1dConfig:
-    feature_dim: int = None  # F
+    feature_dim: int | None = None  # F
     kernel_size: int = 4
     causal_conv_bias: bool = True
     channel_mixing: bool = False
-    conv1d_kwargs: dict[str, Any] = field(default_factory=dict)
+    conv1d_kwargs: dict[str, tp.Any] = field(default_factory=dict)
 
     def __post_init__(self):
         assert self.kernel_size >= 0, "kernel_size must be >= 0"
@@ -106,7 +105,7 @@ class CausalConv1d(nnx.Module):
 
     def _create_weight_decay_optim_groups(
         self,
-    ) -> Tuple[Tuple[nnx.Param, ...], Tuple[nnx.Param, ...]]:
+    ) -> tuple[tuple[nnx.Param, ...], tuple[nnx.Param, ...]]:
         if self.config.kernel_size == 0:
             return (), ()
         else:
@@ -116,21 +115,4 @@ class CausalConv1d(nnx.Module):
                 no_weight_decay = (self.conv.bias,)
             return weight_decay, no_weight_decay
 
-    def load_from_torch(
-        self,
-        torch_module: TorchCausalConv1d,
-    ):
-        """Load weights from a PyTorch module."""
-        if self.config.kernel_size == 0:
-            return
-
-        # Load kernel
-        self.conv.kernel = nnx.Param(
-            jnp.array(torch_module.conv.weight.detach().numpy()).transpose(2, 1, 0)
-        )
-
-        # Load bias if it exists
-        if self.config.causal_conv_bias:
-            self.conv.bias = nnx.Param(
-                jnp.array(torch_module.conv.bias.detach().numpy())
-            )
+    

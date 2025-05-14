@@ -7,7 +7,6 @@ from dataclasses import dataclass
 import jax
 import jax.numpy as jnp
 from flax import nnx
-from xlstm.blocks.slstm.layer import sLSTMLayer as TorchsLSTMLayer
 
 from ...components.conv import CausalConv1d, CausalConv1dConfig
 from ...components.init import small_init_initializer
@@ -149,16 +148,7 @@ class sLSTMLayer(nnx.Module):
         else:
             return out
 
-    def load_from_torch(self, layer: TorchsLSTMLayer):
-        """Load weights from a PyTorch sLSTM layer."""
-
-        self.conv1d.load_from_torch(layer.conv1d)
-        self.fgate.load_from_torch(layer.fgate)
-        self.igate.load_from_torch(layer.igate)
-        self.zgate.load_from_torch(layer.zgate)
-        self.ogate.load_from_torch(layer.ogate)
-        self.slstm_cell.load_from_torch(layer.slstm_cell)
-        self.group_norm.load_from_torch(layer.group_norm)
+    
 
     def reset_parameters(self, rngs: nnx.Rngs) -> None:
         self.slstm_cell.reset_parameters(rngs)

@@ -6,7 +6,6 @@ from typing import Optional
 
 import jax.numpy as jnp
 from flax import nnx
-from xlstm.blocks.xlstm_block import xLSTMBlock as TorchxLSTMBlock
 
 from xlstm_jax.components.ln import LayerNorm
 
@@ -131,18 +130,7 @@ class xLSTMBlock(nnx.Module):
 
         return x
 
-    def load_from_torch(self, torch_block: TorchxLSTMBlock) -> None:
-        """Load parameters from a PyTorch xLSTM block.
 
-        Args:
-            torch_block: PyTorch xLSTM block to load parameters from
-        """
-
-        self.xlstm_norm.load_from_torch(torch_block.xlstm_norm)
-        self.xlstm.load_from_torch(torch_block.xlstm)
-        if self.ffn is not None:
-            self.ffn.load_from_torch(torch_block.ffn)
-            self.ffn_norm.load_from_torch(torch_block.ffn_norm)
 
     def reset_parameters(self, rngs: nnx.Rngs) -> None:
         """Reset parameters of the xLSTM block."""

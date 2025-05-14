@@ -11,8 +11,6 @@ from flax import nnx
 from flax.nnx.nn import initializers
 from flax.nnx.nn.normalization import _canonicalize_axes, _compute_stats, _normalize
 from flax.typing import Axes, Dtype, Initializer
-from xlstm.components.ln import LayerNorm as TorchLayerNorm
-from xlstm.components.ln import MultiHeadLayerNorm as TorchMultiHeadLayerNorm
 
 
 class LayerNorm(nnx.Module):
@@ -136,13 +134,6 @@ class LayerNorm(nnx.Module):
                 self.bias_init(rngs.params(), self.bias.shape, dtype=self.bias.dtype)
             )
 
-    def load_from_torch(self, torch_ln: TorchLayerNorm) -> None:
-        """Load weights from a PyTorch LayerNorm module."""
-        if self.scale is not None:
-            self.scale = nnx.Param(jnp.array(torch_ln.weight.detach().numpy()))
-
-        if self.bias is not None:
-            self.bias = nnx.Param(jnp.array(torch_ln.bias.detach().numpy()))
 
 
 class MultiHeadLayerNorm(nnx.Module):
@@ -295,11 +286,3 @@ class MultiHeadLayerNorm(nnx.Module):
                 self.bias_init(rngs.params(), self.bias.shape, dtype=self.bias.dtype)
             )
 
-    def load_from_torch(self, torch_ln: TorchMultiHeadLayerNorm) -> None:
-        """Load weights from a PyTorch MultiHeadLayerNorm module."""
-
-        if self.scale is not None:
-            self.scale = nnx.Param(jnp.array(torch_ln.weight.detach().numpy()))
-
-        if self.bias is not None:
-            self.bias = nnx.Param(jnp.array(torch_ln.bias.detach().numpy()))

@@ -1,5 +1,5 @@
 [project]
-name = "xlstm-jax"
+name = "xlstm_jax"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -14,23 +14,8 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = [
-    "accelerate>=1.6.0",
-    "datasets>=3.5.1",
-    "grain>=0.2.9",
-    "optax>=0.2.4",
-    "orbax>=0.1.9",
-    "torch>=2.7.0",
-    "transformers>=4.51.3",
-    "xlstm>=2.0.3",
-]
+dev = ["grain>=0.2.9", "optax>=0.2.4", "orbax>=0.1.9"]
 
 
 [tool.setuptools]
 packages = ["xlstm_jax"]
-
-
-# [tool.pyright]
-# exclude = ["torch_xlstm/**"]
-# reportMissingImports = false
-# reportMissingTypeStubs = false
