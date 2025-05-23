@@ -4,6 +4,7 @@
 import math
 import typing as tp
 from abc import ABC
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -11,12 +12,10 @@ import jax
 import jax.numpy as jnp
 import orbax.checkpoint as ocp
 from flax import nnx
+
 from . import (
-    FeedForwardConfig,
     mLSTMBlockConfig,
-    mLSTMLayerConfig,
     sLSTMBlockConfig,
-    sLSTMLayerConfig,
     xLSTMLMModelConfig,
 )
 
@@ -144,28 +143,20 @@ class WeightDecayOptimGroupMixin(nnx.Module, ABC):
         return weight_decay, no_weight_decay
 
 
-def parse_xlstm_config_dict(config_dict: dict[str, tp.Any]):
+def parse_xlstm_config_dict(config: dict[str, tp.Any]):
+    config_dict = deepcopy(config)
     # mLSTM block config deserialization
     mlstm_block_dict: dict[str, tp.Any] = config_dict.pop("mlstm_block", None)
     mlstm_block = None
     if mlstm_block_dict:
-        mlstm_block = mLSTMBlockConfig(
-            mlstm=mLSTMLayerConfig(**mlstm_block_dict.pop("mlstm")),
-            **mlstm_block_dict,
-        )
+        mlstm_block = mLSTMBlockConfig.from_dict(mlstm_block_dict)
 
     # sLSTM block config deserialization
     slstm_block_dict: dict[str, tp.Any] = config_dict.pop("slstm_block", None)
     slstm_block = None
 
     if slstm_block_dict:
-        feedforward_dict = slstm_block_dict.pop("feedforward")
-        feedforward_config = FeedForwardConfig(**feedforward_dict)
-        slstm_block = sLSTMBlockConfig(
-            slstm=sLSTMLayerConfig(**slstm_block_dict.pop("slstm")),
-            feedforward=feedforward_config,
-            **slstm_block_dict,
-        )
+        slstm_block = sLSTMBlockConfig.from_dict(slstm_block_dict)
 
     # xLSTM stack config deserialization
     xlstm_config = xLSTMLMModelConfig(

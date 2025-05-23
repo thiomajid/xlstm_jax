@@ -1,8 +1,8 @@
 # Copyright (c) NXAI GmbH and its affiliates 2024
 # Korbininan Pöppel
 # Converted to JAX/Flax by Abdoul Majid O. Thiombiano
+import typing as tp
 from dataclasses import dataclass, field
-from typing import Optional
 
 import jax.numpy as jnp
 from flax import nnx
@@ -15,11 +15,13 @@ from .layer import sLSTMLayerConfig
 @dataclass
 class sLSTMBlockConfig:
     slstm: sLSTMLayerConfig = field(default_factory=sLSTMLayerConfig)
-    feedforward: Optional[FeedForwardConfig] = field(default_factory=FeedForwardConfig)
+    feedforward: tp.Optional[FeedForwardConfig] = field(
+        default_factory=FeedForwardConfig
+    )
 
     # we initialize these with None to catch the case where they are not set
-    _num_blocks: Optional[int] = None
-    _block_idx: Optional[int] = None
+    _num_blocks: tp.Optional[int] = None
+    _block_idx: tp.Optional[int] = None
 
     def __post_init__(self):
         # Make sure block indexes are properly propagated to layer configs
@@ -35,11 +37,22 @@ class sLSTMBlockConfig:
         if self.feedforward is not None and hasattr(self.feedforward, "__post_init__"):
             self.feedforward.__post_init__()
 
+    @classmethod
+    def from_dict(config: dict[str, tp.Any]) -> tp.Self:
+        feedforward_dict = config.pop("feedforward")
+        feedforward_config = FeedForwardConfig.from_dict(**feedforward_dict)
+
+        return sLSTMBlockConfig(
+            slstm=sLSTMLayerConfig(**config.pop("slstm")),
+            feedforward=feedforward_config,
+            **config,
+        )
+
 
 class sLSTMBlock(xLSTMBlock):
     """sLSTM block implementation based on the xLSTM building block architecture.
 
-    This specialized block uses sLSTM layer and optionally a feedforward component.
+    This specialized block uses sLSTM layer and tp.optionally a feedforward component.
     """
 
     config_class = sLSTMBlockConfig

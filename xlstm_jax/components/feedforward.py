@@ -1,8 +1,8 @@
 # Copyright (c) NXAI GmbH and its affiliates 2024
 # Maximilian Beck
 # Converted to JAX/Flax by Abdoul Majid O. Thiombiano
+import typing as tp
 from dataclasses import dataclass
-from typing import Callable, Literal
 
 import jax
 import jax.numpy as jnp
@@ -22,7 +22,7 @@ _act_fn_registry = {
 }
 
 
-def get_act_fn(act_fn_name: str) -> Callable[[jnp.ndarray], jnp.ndarray]:
+def get_act_fn(act_fn_name: str) -> tp.Callable[[jnp.ndarray], jnp.ndarray]:
     """Get activation function by name."""
     if act_fn_name in _act_fn_registry:
         return _act_fn_registry[act_fn_name]
@@ -40,7 +40,7 @@ class FeedForwardConfig(UpProjConfigMixin):
     embedding_dim: int = -1
     dropout: float = 0.0
     bias: bool = False
-    ff_type: Literal["ffn_gated"] = "ffn_gated"
+    ff_type: tp.Literal["ffn_gated"] = "ffn_gated"
 
     _num_blocks: int = 1
 
@@ -49,6 +49,10 @@ class FeedForwardConfig(UpProjConfigMixin):
         assert self.act_fn in _act_fn_registry, (
             f"Unknown activation function {self.act_fn}"
         )
+
+    @classmethod
+    def from_dict(config: dict[str, tp.Any]) -> tp.Self:
+        return FeedForwardConfig(**config)
 
 
 class GatedFeedForward(nnx.Module):
@@ -150,8 +154,6 @@ class GatedFeedForward(nnx.Module):
                     dtype=self.proj_down.bias.dtype,
                 )
             )
-
-
 
 
 def create_feedforward(config: FeedForwardConfig, rngs: nnx.Rngs, dtype=jnp.float32):
