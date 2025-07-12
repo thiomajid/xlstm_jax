@@ -4,7 +4,6 @@
 import math
 import typing as tp
 from abc import ABC
-from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -13,14 +12,8 @@ import jax.numpy as jnp
 import orbax.checkpoint as ocp
 from flax import nnx
 
-from . import (
-    mLSTMBlockConfig,
-    sLSTMBlockConfig,
-    xLSTMLMModelConfig,
-)
 
-
-@dataclass
+@dataclass(unsafe_hash=True, order=True)
 class UpProjConfigMixin:
     proj_factor: float = None  # will be overridden by subclasses
     round_proj_up_dim_up: bool = True
@@ -141,31 +134,6 @@ class WeightDecayOptimGroupMixin(nnx.Module, ABC):
             no_weight_decay += nwd
 
         return weight_decay, no_weight_decay
-
-
-def parse_xlstm_config_dict(config: dict[str, tp.Any]):
-    config_dict = deepcopy(config)
-    # mLSTM block config deserialization
-    mlstm_block_dict: dict[str, tp.Any] = config_dict.pop("mlstm_block", None)
-    mlstm_block = None
-    if mlstm_block_dict:
-        mlstm_block = mLSTMBlockConfig.from_dict(mlstm_block_dict)
-
-    # sLSTM block config deserialization
-    slstm_block_dict: dict[str, tp.Any] = config_dict.pop("slstm_block", None)
-    slstm_block = None
-
-    if slstm_block_dict:
-        slstm_block = sLSTMBlockConfig.from_dict(slstm_block_dict)
-
-    # xLSTM stack config deserialization
-    xlstm_config = xLSTMLMModelConfig(
-        mlstm_block=mlstm_block,
-        slstm_block=slstm_block,
-        **config_dict,
-    )
-
-    return xlstm_config
 
 
 _dtype_map = {

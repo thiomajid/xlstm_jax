@@ -1,9 +1,10 @@
 # Copyright (c) NXAI GmbH and its affiliates 2024
 # Maximilian Beck
 # Converted to JAX/Flax by Abdoul Majid O. Thiombiano
-import typing as tp
 from dataclasses import dataclass, field
+from typing import Optional
 
+import jax
 import jax.numpy as jnp
 from flax import nnx
 
@@ -11,25 +12,18 @@ from ..xlstm_block import xLSTMBlock, xLSTMBlockConfig
 from .layer import mLSTMLayerConfig
 
 
-@dataclass
+@dataclass(unsafe_hash=True, order=True)
 class mLSTMBlockConfig:
     mlstm: mLSTMLayerConfig = field(default_factory=mLSTMLayerConfig)
 
     # we initialize these with None to catch the case where they are not set
-    _num_blocks: tp.Optional[int] = None
-    _block_idx: tp.Optional[int] = None
+    _num_blocks: Optional[int] = None
+    _block_idx: Optional[int] = None
 
     def __post_init__(self):
         if self._num_blocks is not None:
             self.mlstm._num_blocks = self._num_blocks
         self.mlstm.__post_init__()
-
-    @classmethod
-    def from_dict(config: dict[str, tp.Any]) -> tp.Self:
-        return mLSTMBlockConfig(
-            mlstm=mLSTMLayerConfig(**config.pop("mlstm")),
-            **config,
-        )
 
 
 class mLSTMBlock(xLSTMBlock):
@@ -45,6 +39,7 @@ class mLSTMBlock(xLSTMBlock):
         self,
         config: mLSTMBlockConfig,
         *,
+        mesh: jax.sharding.Mesh,
         rngs: nnx.Rngs,
         dtype=jnp.float32,
     ) -> None:
@@ -63,4 +58,4 @@ class mLSTMBlock(xLSTMBlock):
         )
 
         # Initialize using the parent class constructor
-        super().__init__(config=xlstm_config, rngs=rngs, dtype=dtype)
+        super().__init__(config=xlstm_config, mesh=mesh, rngs=rngs, dtype=dtype)

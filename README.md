@@ -31,7 +31,7 @@ url={https://github.com/NX-AI/xlstm/},
 If you use this JAX/Flax implementation in your research, please cite it as follows:
 
 ```bibtex
-@misc{xlstm-jax-port,
+@misc{thiombiano2025xlstmjax,
 title={xLSTM-JAX Port},
 author={Thiombiano, Abdoul Majid O.},
 year={2024},
