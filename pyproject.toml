@@ -1,6 +1,7 @@
 [project]
 name = "xlstm_jax"
 version = "0.1.0"
+authors = [{ name = "Abdoul Majid O. Thiombiano" }]
 description = "JAX/Flax port of the torch xLSTM package"
 readme = "README.md"
 requires-python = ">=3.12"
