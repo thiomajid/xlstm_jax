@@ -141,6 +141,8 @@ class HubDataSource(grain.RandomAccessDataSource):
 def create_dataloaders(
     logger: logging.Logger,
     args: TrainingArguments,
+    tokenizer: AutoTokenizer,
+    max_seq_length: int,
     target_columns: list[str],
     train_transforms: list[grain.MapTransform],
     eval_transforms: list[grain.MapTransform],
@@ -156,6 +158,8 @@ def create_dataloaders(
         split=args.train_split,
         num_samples=args.train_samples,
         token=args.hub_token,
+        tokenizer=tokenizer,
+        max_seq_length=max_seq_length,
     )
 
     train_data = train_data.select_columns(target_columns)
@@ -189,6 +193,8 @@ def create_dataloaders(
         split=args.eval_split,
         num_samples=args.eval_samples,
         token=args.hub_token,
+        tokenizer=tokenizer,
+        max_seq_length=max_seq_length,
     )
 
     logger.info(f"Evaluation dataset loaded with {len(eval_data)} samples")

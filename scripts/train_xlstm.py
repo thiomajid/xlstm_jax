@@ -239,6 +239,8 @@ def main(cfg: DictConfig):
     train_loader, eval_loader = create_dataloaders(
         logger=logger,
         args=args,
+        tokenizer=tokenizer,
+        max_seq_length=config.context_length,
         target_columns=TARGET_COLUMNS,
         train_transforms=train_transforms,
         eval_transforms=eval_transforms,
