@@ -232,18 +232,20 @@ class xLSTMBlockStack(nnx.Module):
         x_t = None
         h_t = None
 
-        if self.has_uniform_blocks:
+        if False:
             x_t, h_t = _block_scan(self.blocks, x)
         else:
+            graphdef, state = nnx.split(self.blocks)
 
-            def _local_block_scan(carry: jax.Array, block_idx: jax.Array):
-                next_state = jax.lax.switch(block_idx, self.blocks, carry)
+            def _local_block_scan(carry: jax.Array, block_state: nnx.State):
+                block = nnx.merge(graphdef, block_state)
+                next_state = block(carry)
                 return next_state, next_state
 
             x_t, h_t = jax.lax.scan(
                 f=_local_block_scan,
                 init=x,
-                xs=jnp.arange(self.num_blocks),
+                xs=state,
             )
 
         x_t = self.post_blocks_norm(x_t)
