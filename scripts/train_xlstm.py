@@ -359,11 +359,11 @@ def main(cfg: DictConfig):
     if SAMPLE_TOKENS.shape[0] == 1:
         SAMPLE_TOKENS = SAMPLE_TOKENS.squeeze(0)
 
-    logger.info(f"Samples tokens shape: {SAMPLE_TOKENS.shape}")
-
     CONTEXT_WINDOW = config.context_length
     SAMPLE_TOKENS = SAMPLE_TOKENS[:num_generation_samples, : CONTEXT_WINDOW // 2]
     SAMPLE_TOKENS = jax.device_put(SAMPLE_TOKENS, DATA_SHARDING)
+
+    logger.info(f"Samples tokens shape: {SAMPLE_TOKENS.shape}")
 
     CALLBACKS = [
         CheckpointCallback(

@@ -92,7 +92,7 @@ class Trainer:
                 callback.on_epoch_end(self.state, metrics)
 
     def train(self):
-        dtype = jnp.int32
+        labels_dtype = jnp.int32
         epoch_durations = []
 
         self.on_train_start()  #! Callback hook
@@ -118,8 +118,8 @@ class Trainer:
 
             for batch in train_pbar:
                 self.state.current_step += 1  # Count every batch as a step
-                input_ids = jnp.array(batch["input_ids"], dtype=dtype)
-                labels = jnp.array(batch["labels"], dtype=dtype)
+                input_ids = jnp.array(batch["input_ids"])
+                labels = jnp.array(batch["labels"], dtype=labels_dtype)
 
                 # Grain may add an additional batch dim
                 if input_ids.shape[0] == 1:
@@ -196,8 +196,8 @@ class Trainer:
 
             for batch in eval_pbar:
                 eval_batch_count += 1
-                input_ids = jnp.array(batch["input_ids"], dtype=dtype)
-                labels = jnp.array(batch["labels"], dtype=dtype)
+                input_ids = jnp.array(batch["input_ids"])
+                labels = jnp.array(batch["labels"], dtype=labels_dtype)
 
                 # Grain may add an additional batch dim
                 if input_ids.shape[0] == 1:
