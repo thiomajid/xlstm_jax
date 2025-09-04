@@ -171,6 +171,7 @@ class sLSTMCellBase(nnx.Module):
             sharding=(None, None, "tp"),
             mesh=mesh,
         )
+
         self._bias_ = nnx.Param(
             bias_init(
                 rngs.params(),

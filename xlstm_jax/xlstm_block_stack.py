@@ -7,8 +7,8 @@ from typing import Literal, Optional, Union
 
 import jax
 import jax.numpy as jnp
+import jax.tree as jtu
 from flax import nnx
-from jax import tree_util
 
 from .blocks.mlstm.block import mLSTMBlock, mLSTMBlockConfig
 from .blocks.slstm.block import sLSTMBlock, sLSTMBlockConfig
@@ -129,11 +129,9 @@ def _create_blocks(
         template_graphdef = graphdefs[0]
 
         # Stack the states (parameters) along a new axis
-        stacked_state = tree_util.tree_map(
-            lambda *args: jnp.stack(args, axis=0), *states
-        )
+        stacked_state = jtu.map(lambda *args: jnp.stack(args, axis=0), *states)
 
-        remainder_state = tree_util.tree_map(
+        remainder_state = jtu.map(
             lambda *args: jnp.stack(args, axis=0), *remainder_state
         )
 

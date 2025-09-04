@@ -17,7 +17,6 @@ dependencies = [
     "optax>=0.2.5",
     "orbax>=0.1.9",
     "tensorflow>=2.20.0",
-    "trackio>=0.3.2",
     "transformers>=4.56.0",
 ]
 

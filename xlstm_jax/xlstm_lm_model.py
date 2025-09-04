@@ -9,6 +9,8 @@ import jax.numpy as jnp
 from flax import nnx
 from flax.nnx.nn.linear import default_embed_init
 
+from xlstm_jax.inference import GenerationMixin
+
 from .components.init import small_init_initializer
 from .xlstm_block_stack import xLSTMBlockStack, xLSTMBlockStackConfig
 
@@ -19,10 +21,10 @@ class xLSTMLMModelConfig(xLSTMBlockStackConfig):
     tie_weights: bool = False
     weight_decay_on_embedding: bool = False
     add_embedding_dropout: bool = False
-    pad_token_id: int = 1
+    pad_token_id: int = 0
 
 
-class xLSTMLMModel(nnx.Module):
+class xLSTMLMModel(nnx.Module, GenerationMixin):
     """Language model using xLSTM blocks as its backbone.
 
     This model combines token embeddings with an xLSTM block stack
@@ -38,6 +40,13 @@ class xLSTMLMModel(nnx.Module):
         dtype=jnp.bfloat16,
         param_dtype=jnp.float32,
     ):
+        super().__init__()
+
+        self.vocab_size = config.vocab_size
+        self.num_blocks = config.num_blocks
+        self.embedding_dim = config.embedding_dim
+        self.pad_token_id = config.pad_token_id
+
         self.xlstm_block_stack = xLSTMBlockStack(
             config=config,
             mesh=mesh,
