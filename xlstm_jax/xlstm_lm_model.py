@@ -24,7 +24,8 @@ class xLSTMLMModelConfig(xLSTMBlockStackConfig):
     pad_token_id: int = 0
 
     def __post_init__(self):
-        return super().__post_init__()
+        super().__post_init__()
+        self.slstm_at = tuple(self.slstm_at)
 
 
 class xLSTMLMModel(nnx.Module, GenerationMixin):
