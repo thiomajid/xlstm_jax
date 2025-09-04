@@ -1,3 +1,7 @@
+import sys
+
+sys.path.append("..")
+
 import logging
 import typing as tp
 from functools import partial
