@@ -1,7 +1,7 @@
 import typing as tp
 
-from torch_xlstm.xlstm.xlstm_large.model import mLSTMLayerConfig
 from xlstm_jax.blocks.mlstm.block import mLSTMBlockConfig
+from xlstm_jax.blocks.mlstm.layer import mLSTMLayerConfig
 from xlstm_jax.blocks.slstm.block import sLSTMBlockConfig
 from xlstm_jax.blocks.slstm.layer import sLSTMLayerConfig
 from xlstm_jax.components.feedforward import FeedForwardConfig
