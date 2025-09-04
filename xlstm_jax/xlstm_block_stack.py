@@ -7,7 +7,6 @@ from typing import Literal, Optional, Union
 
 import jax
 import jax.numpy as jnp
-import jax.tree as jtu
 from flax import nnx
 
 from .blocks.mlstm.block import mLSTMBlock, mLSTMBlockConfig
@@ -86,61 +85,61 @@ def _create_blocks(
     dtype=jnp.bfloat16,
     param_dtype=jnp.float32,
 ):
-    if len(config.slstm_at) == 0:  # only mLSTM blocks
+    # if len(config.slstm_at) == 0:  # only mLSTM blocks
 
-        @nnx.vmap
-        def _mBlocks(rngs: nnx.Rngs):
-            return mLSTMBlock(
-                config=config.mlstm_block,
-                rngs=rngs,
-                mesh=mesh,
-                dtype=dtype,
-                param_dtype=param_dtype,
-            )
+    #     @nnx.vmap
+    #     def _mBlocks(rngs: nnx.Rngs):
+    #         return mLSTMBlock(
+    #             config=config.mlstm_block,
+    #             rngs=rngs,
+    #             mesh=mesh,
+    #             dtype=dtype,
+    #             param_dtype=param_dtype,
+    #         )
 
-        return _mBlocks(rngs.fork(split=config.num_blocks))
+    #     return _mBlocks(rngs.fork(split=config.num_blocks))
 
-    # only sLSTM blocks
-    if len(config.slstm_at) == config.num_blocks or config.slstm_at == "all":
-        blocks: list[sLSTMBlock] = []
+    # # only sLSTM blocks
+    # if len(config.slstm_at) == config.num_blocks or config.slstm_at == "all":
+    #     blocks: list[sLSTMBlock] = []
 
-        for block_idx, block_type_int in enumerate(config.block_map):
-            block_config = deepcopy(config.slstm_block)
-            if hasattr(block_config, "_block_idx"):
-                block_config._block_idx = block_idx
-                block_config.__post_init__()
-            blocks.append(
-                sLSTMBlock(
-                    config=block_config,
-                    rngs=rngs,
-                    mesh=mesh,
-                    dtype=dtype,
-                    param_dtype=param_dtype,
-                )
-            )
+    #     for block_idx, block_type_int in enumerate(config.block_map):
+    #         block_config = deepcopy(config.slstm_block)
+    #         if hasattr(block_config, "_block_idx"):
+    #             block_config._block_idx = block_idx
+    #             block_config.__post_init__()
+    #         blocks.append(
+    #             sLSTMBlock(
+    #                 config=block_config,
+    #                 rngs=rngs,
+    #                 mesh=mesh,
+    #                 dtype=dtype,
+    #                 param_dtype=param_dtype,
+    #             )
+    #         )
 
-        # Stack the modules into a single module with batched parameters
-        # Split each block into graphdef and state
-        graphdefs, states, remainder_state = zip(
-            *(nnx.split(m, nnx.Param, ...) for m in blocks)
-        )
+    #     # Stack the modules into a single module with batched parameters
+    #     # Split each block into graphdef and state
+    #     graphdefs, states, remainder_state = zip(
+    #         *(nnx.split(m, nnx.Param, ...) for m in blocks)
+    #     )
 
-        # All blocks should have the same structure, so use the first graphdef as template
-        template_graphdef = graphdefs[0]
+    #     # All blocks should have the same structure, so use the first graphdef as template
+    #     template_graphdef = graphdefs[0]
 
-        # Stack the states (parameters) along a new axis
-        stacked_state = jtu.map(lambda *args: jnp.stack(args, axis=0), *states)
+    #     # Stack the states (parameters) along a new axis
+    #     stacked_state = jtu.map(lambda *args: jnp.stack(args, axis=0), *states)
 
-        remainder_state = jtu.map(
-            lambda *args: jnp.stack(args, axis=0), *remainder_state
-        )
+    #     remainder_state = jtu.map(
+    #         lambda *args: jnp.stack(args, axis=0), *remainder_state
+    #     )
 
-        merged_state = nnx.merge_state(stacked_state, remainder_state)
+    #     merged_state = nnx.merge_state(stacked_state, remainder_state)
 
-        # Create the stacked block by merging template graphdef with stacked state
-        stacked_block = nnx.merge(template_graphdef, merged_state)
+    #     # Create the stacked block by merging template graphdef with stacked state
+    #     stacked_block = nnx.merge(template_graphdef, merged_state)
 
-        return stacked_block
+    #     return stacked_block
 
     # Mixed blocks case - return as tuple since they have different structures
     blocks: list[mLSTMBlock | sLSTMBlock] = []
@@ -229,24 +228,28 @@ class xLSTMBlockStack(nnx.Module):
         )
 
     def __call__(self, x: jax.Array):
-        x_t = None
-        h_t = None
+        x_t = x
+        h_t = []
 
-        if False:
-            x_t, h_t = _block_scan(self.blocks, x)
-        else:
-            graphdef, state = nnx.split(self.blocks)
+        # if False:
+        #     x_t, h_t = _block_scan(self.blocks, x)
+        # else:
+        #     graphdef, state = nnx.split(self.blocks)
 
-            def _local_block_scan(carry: jax.Array, block_state: nnx.State):
-                block = nnx.merge(graphdef, block_state)
-                next_state = block(carry)
-                return next_state, next_state
+        #     def _local_block_scan(carry: jax.Array, block_state: nnx.State):
+        #         block = nnx.merge(graphdef, block_state)
+        #         next_state = block(carry)
+        #         return next_state, next_state
 
-            x_t, h_t = jax.lax.scan(
-                f=_local_block_scan,
-                init=x,
-                xs=state,
-            )
+        #     x_t, h_t = jax.lax.scan(
+        #         f=_local_block_scan,
+        #         init=x,
+        #         xs=state,
+        #     )
+
+        for idx, block in enumerate(self.blocks):
+            x_t = block(x_t)
+            h_t.append(x_t)
 
         x_t = self.post_blocks_norm(x_t)
 
