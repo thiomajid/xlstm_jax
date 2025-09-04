@@ -65,14 +65,14 @@ def train_step(
     loss, grads = grad_fn(model, batch)
 
     # Debugging NaNs
-    # jax.debug.print("loss: {loss}", loss=loss)
-    # is_nan_loss = jnp.isnan(loss)
-    # jax.debug.print("is_nan_loss: {is_nan_loss}", is_nan_loss=is_nan_loss)
+    jax.debug.print("loss: {loss}", loss=loss)
+    is_nan_loss = jnp.isnan(loss)
+    jax.debug.print("is_nan_loss: {is_nan_loss}", is_nan_loss=is_nan_loss)
 
     grad_norm = optax.global_norm(grads)
-    # jax.debug.print("grad_norm: {grad_norm}", grad_norm=grad_norm)
-    # is_nan_grad = jnp.isnan(grad_norm)
-    # jax.debug.print("is_nan_grad: {is_nan_grad}", is_nan_grad=is_nan_grad)
+    jax.debug.print("grad_norm: {grad_norm}", grad_norm=grad_norm)
+    is_nan_grad = jnp.isnan(grad_norm)
+    jax.debug.print("is_nan_grad: {is_nan_grad}", is_nan_grad=is_nan_grad)
 
     optimizer.update(model, grads)
 
@@ -421,8 +421,7 @@ def main(cfg: DictConfig):
         callbacks=CALLBACKS,
     )
 
-    with jax.debug_nans(True):
-        trainer.train()
+    trainer.train()
 
     logger.info("Everything is done")
 
