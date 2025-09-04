@@ -300,7 +300,7 @@ def main(cfg: DictConfig):
 
     # Optimizer
     optimizer_def = optax.chain(
-        optax.clip_by_global_norm(1.0),
+        optax.clip_by_global_norm(args.max_grad_norm),
         optax.adamw(
             learning_rate=cosine_schedule,
             b1=args.adam_beta1,

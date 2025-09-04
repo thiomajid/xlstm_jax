@@ -183,19 +183,20 @@ class Trainer:
                         train_pbar.set_postfix(postfix_data)
                         # train_pbar.update(1)
 
-                #! Evaluation after each epoch
-                self.logger.info(f"Starting evaluation after epoch {epoch + 1}...")
-                self.eval_metrics.reset()
-                eval_batch_count = 0
+            #! Evaluation after each epoch
+            self.logger.info(f"Starting evaluation after epoch {epoch + 1}...")
+            self.eval_metrics.reset()
+            eval_batch_count = 0
 
-                self.model.eval()
-                eval_start_time = perf_counter()
-                eval_pbar = tqdm(
-                    self.eval_dataloader,
-                    desc=f"Evaluating Epoch {epoch + 1}",
-                    leave=False,
-                )
+            self.model.eval()
+            eval_start_time = perf_counter()
+            eval_pbar = tqdm(
+                self.eval_dataloader,
+                desc=f"Evaluating Epoch {epoch + 1}",
+                leave=False,
+            )
 
+            with jax.debug_nans(True):
                 for batch in eval_pbar:
                     eval_batch_count += 1
                     input_ids = jnp.array(batch["input_ids"])

@@ -221,7 +221,7 @@ class xLSTMBlockStack(nnx.Module):
                 num_features=config.embedding_dim,
                 rngs=rngs,
                 mesh=mesh,
-                dtype=dtype,
+                dtype=jnp.float32,
                 param_dtype=param_dtype,
             )
             if config.add_post_blocks_norm

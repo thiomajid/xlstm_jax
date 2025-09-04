@@ -32,6 +32,7 @@ trainer:
   adam_beta1: 0.9
   adam_beta2: 0.999
   warmup_ratio: 0.1
+  max_grad_norm: 1.0
 
   # Logging and saving
   logging_steps: 100
