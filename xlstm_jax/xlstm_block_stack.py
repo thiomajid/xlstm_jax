@@ -247,7 +247,7 @@ class xLSTMBlockStack(nnx.Module):
         #         xs=state,
         #     )
 
-        for idx, block in enumerate(self.blocks):
+        for block in self.blocks:
             x_t = block(x_t)
             h_t.append(x_t)
 
