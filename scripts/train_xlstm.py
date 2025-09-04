@@ -59,27 +59,27 @@ def train_step(
     optimizer: nnx.Optimizer,
     metrics: nnx.MultiMetric,
 ):
-    with jax.debug_nans(True):
-        grad_fn = nnx.value_and_grad(lm_loss)
-        loss, grads = grad_fn(model, batch)
+    # with jax.debug_nans(True):
+    grad_fn = nnx.value_and_grad(lm_loss)
+    loss, grads = grad_fn(model, batch)
 
-        # Debugging NaNs
-        jax.debug.print("loss: {loss}", loss=loss)
-        is_nan_loss = jnp.isnan(loss)
-        jax.debug.print("is_nan_loss: {is_nan_loss}", is_nan_loss=is_nan_loss)
+    # Debugging NaNs
+    # jax.debug.print("loss: {loss}", loss=loss)
+    # is_nan_loss = jnp.isnan(loss)
+    # jax.debug.print("is_nan_loss: {is_nan_loss}", is_nan_loss=is_nan_loss)
 
-        grad_norm = optax.global_norm(grads)
-        jax.debug.print("grad_norm: {grad_norm}", grad_norm=grad_norm)
-        is_nan_grad = jnp.isnan(grad_norm)
-        jax.debug.print("is_nan_grad: {is_nan_grad}", is_nan_grad=is_nan_grad)
+    grad_norm = optax.global_norm(grads)
+    # jax.debug.print("grad_norm: {grad_norm}", grad_norm=grad_norm)
+    # is_nan_grad = jnp.isnan(grad_norm)
+    # jax.debug.print("is_nan_grad: {is_nan_grad}", is_nan_grad=is_nan_grad)
 
-        optimizer.update(model, grads)
+    optimizer.update(model, grads)
 
-        metrics.update(
-            loss=loss,
-            perplexity=jnp.exp(loss),
-            grad_norm=grad_norm,
-        )
+    metrics.update(
+        loss=loss,
+        perplexity=jnp.exp(loss),
+        grad_norm=grad_norm,
+    )
 
     return loss, grads, grad_norm
 
