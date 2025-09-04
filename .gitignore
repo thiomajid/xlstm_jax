@@ -11,3 +11,4 @@ wheels/
 torch_xlstm/
 ckpts_demo/
 outputs/
+logs/
