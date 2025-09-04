@@ -360,7 +360,7 @@ def main(cfg: DictConfig):
 
     logger.info(f"Samples tokens shape: {SAMPLE_TOKENS.shape}")
 
-    SAMPLE_TOKENS = SAMPLE_TOKENS[:num_generation_samples]
+    SAMPLE_TOKENS = SAMPLE_TOKENS[:num_generation_samples, :10]  # 10 first tokens
     SAMPLE_TOKENS = jax.device_put(SAMPLE_TOKENS, DATA_SHARDING)
 
     CALLBACKS = [
