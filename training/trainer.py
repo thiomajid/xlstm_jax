@@ -116,72 +116,72 @@ class Trainer:
             train_pbar.set_description(epoch_desc)
             self.model.train()
 
-            with jax.debug_nans(True):
-                for batch in train_pbar:
-                    self.state.current_step += 1  # Count every batch as a step
-                    input_ids = jnp.array(batch["input_ids"])
-                    labels = jnp.array(batch["labels"], dtype=labels_dtype)
+            for batch in train_pbar:
+                self.state.current_step += 1  # Count every batch as a step
+                input_ids = jnp.array(batch["input_ids"])
+                labels = jnp.array(batch["labels"], dtype=labels_dtype)
 
-                    # Grain may add an additional batch dim
-                    if input_ids.shape[0] == 1:
-                        input_ids = input_ids.squeeze(0)
+                # Grain may add an additional batch dim
+                if input_ids.shape[0] == 1:
+                    input_ids = input_ids.squeeze(0)
 
-                    if labels.shape[0] == 1:
-                        labels = labels.squeeze(0)
+                if labels.shape[0] == 1:
+                    labels = labels.squeeze(0)
 
-                    # Data placement
-                    input_ids = jax.device_put(input_ids, self.data_sharding)
-                    labels = jax.device_put(labels, self.data_sharding)
-                    step_batch = (input_ids, labels)
+                # Data placement
+                input_ids = jax.device_put(input_ids, self.data_sharding)
+                labels = jax.device_put(labels, self.data_sharding)
+                step_batch = (input_ids, labels)
 
-                    loss, grads, grad_norm = self._train_step_fn(
-                        self.model,
-                        step_batch,
-                        self.optimizer,
-                        self.train_metrics,
+                loss, grads, grad_norm = self._train_step_fn(
+                    self.model,
+                    step_batch,
+                    self.optimizer,
+                    self.train_metrics,
+                )
+
+                postfix_data = {}
+
+                # Check if it's time for optimizer step
+                is_update_step = (
+                    self.state.current_step % self.args.gradient_accumulation_steps == 0
+                )
+
+                if is_update_step:
+                    self.state.optimizer_step += 1
+
+                    # Log learning rate
+                    current_lr = self.lr_scheduler(self.state.optimizer_step)
+                    self.reporter.log_learning_rate(
+                        current_lr, self.state.optimizer_step
                     )
 
-                    # Logging
-                    if self.state.current_step % self.args.logging_steps == 0:
-                        computed_metrics = self.train_metrics.compute()
-                        for metric, value in computed_metrics.items():
-                            self.reporter.log_scalar(
-                                f"train/{metric}",
-                                value,
-                                self.state.current_step,
-                            )
+                    postfix_data["lr"] = f"{current_lr:.2e}"
+                    train_pbar.set_postfix(postfix_data)
 
-                        self.train_metrics.reset()
-
-                        postfix_data = {
-                            "step": f"{self.state.current_step}/{self.steps_config.max_steps}",
-                            "opt_step": f"{self.state.optimizer_step}/{self.steps_config.max_optimizer_steps}",
-                            "loss": f"{loss.item():.6f}",
-                            "grad_norm": f"{grad_norm.item():.4f}",
-                        }
-
-                        # Check if it's time for optimizer step
-                        is_update_step = (
-                            self.state.current_step
-                            % self.args.gradient_accumulation_steps
-                            == 0
+                # Logging
+                if self.state.current_step % self.args.logging_steps == 0:
+                    computed_metrics = self.train_metrics.compute()
+                    for metric, value in computed_metrics.items():
+                        self.reporter.log_scalar(
+                            f"train/{metric}",
+                            value,
+                            self.state.current_step,
                         )
 
-                        if is_update_step:
-                            self.state.optimizer_step += 1
+                    self.train_metrics.reset()
 
-                            # Log learning rate
-                            current_lr = self.lr_scheduler(self.state.optimizer_step)
-                            self.reporter.log_learning_rate(
-                                current_lr, self.state.optimizer_step
-                            )
+                    postfix_data = {
+                        "step": f"{self.state.current_step}/{self.steps_config.max_steps}",
+                        "opt_step": f"{self.state.optimizer_step}/{self.steps_config.max_optimizer_steps}",
+                        "loss": f"{loss.item():.6f}",
+                        "grad_norm": f"{grad_norm.item():.4f}",
+                    }
+                    train_pbar.set_postfix(postfix_data)
 
-                            postfix_data["lr"] = f"{current_lr:.2e}"
-
-                        current_desc = f"Epoch {epoch + 1}/{self.args.num_train_epochs} (Step {self.state.current_step}/{self.steps_config.max_steps}, Opt {self.state.optimizer_step}/{self.steps_config.max_optimizer_steps})"
-                        train_pbar.set_description(current_desc)
-                        train_pbar.set_postfix(postfix_data)
-                        # train_pbar.update(1)
+                current_desc = f"Epoch {epoch + 1}/{self.args.num_train_epochs} (Step {self.state.current_step}/{self.steps_config.max_steps}, Opt {self.state.optimizer_step}/{self.steps_config.max_optimizer_steps})"
+                train_pbar.set_description(current_desc)
+                # train_pbar.update(1)
 
             #! Evaluation after each epoch
             self.logger.info(f"Starting evaluation after epoch {epoch + 1}...")
@@ -196,39 +196,35 @@ class Trainer:
                 leave=False,
             )
 
-            with jax.debug_nans(True):
-                for batch in eval_pbar:
-                    eval_batch_count += 1
-                    input_ids = jnp.array(batch["input_ids"])
-                    labels = jnp.array(batch["labels"], dtype=labels_dtype)
+            for batch in eval_pbar:
+                eval_batch_count += 1
+                input_ids = jnp.array(batch["input_ids"])
+                labels = jnp.array(batch["labels"], dtype=labels_dtype)
 
-                    # Grain may add an additional batch dim
-                    if input_ids.shape[0] == 1:
-                        input_ids = input_ids.squeeze(0)
+                # Grain may add an additional batch dim
+                if input_ids.shape[0] == 1:
+                    input_ids = input_ids.squeeze(0)
 
-                    if labels.shape[0] == 1:
-                        labels = labels.squeeze(0)
+                if labels.shape[0] == 1:
+                    labels = labels.squeeze(0)
 
-                    # Data placement
-                    input_ids = jax.device_put(input_ids, self.data_sharding)
-                    labels = jax.device_put(labels, self.data_sharding)
-                    step_batch = (input_ids, labels)
+                # Data placement
+                input_ids = jax.device_put(input_ids, self.data_sharding)
+                labels = jax.device_put(labels, self.data_sharding)
+                step_batch = (input_ids, labels)
+                self._eval_step_fn(self.model, step_batch, self.eval_metrics)
 
-                    self._eval_step_fn(self.model, step_batch, self.eval_metrics)
+                self.logger.info(f"Processed {eval_batch_count} evaluation batches")
+                eval_end_time = perf_counter()
+                eval_duration = eval_end_time - eval_start_time
 
-                    self.logger.info(f"Processed {eval_batch_count} evaluation batches")
-                    eval_end_time = perf_counter()
-                    eval_duration = eval_end_time - eval_start_time
+                self.reporter.log_scalar(
+                    "timing/eval_duration",
+                    eval_duration,
+                    self.state.current_step,
+                )
 
-                    self.reporter.log_scalar(
-                        "timing/eval_duration",
-                        eval_duration,
-                        self.state.current_step,
-                    )
-
-                    self.logger.info(
-                        f"Evaluation completed in {eval_duration:.2f} seconds"
-                    )
+                self.logger.info(f"Evaluation completed in {eval_duration:.2f} seconds")
 
             # Record epoch duration and log to TensorBoard
             epoch_end_time = perf_counter()
