@@ -148,12 +148,30 @@ class GenerateTextCallback(Callback):
             decoded: list[str] = []
 
             for i in range(self.batch_size):
-                decoded.append(
-                    self.tokenizer.decode(
-                        sequences[i],
-                        remove_special_tokens=True,
-                    )
+                generated_text: str = self.tokenizer.decode(
+                    sequences[i],
+                    remove_special_tokens=True,
                 )
+
+                # add markdown bold delimiters to distinguish the original text
+                # from the generated one
+                initial_text = generated_text[: self.initial_sequence_length]
+                generated_text = (
+                    "**"
+                    + initial_text
+                    + "**"
+                    + generated_text[self.initial_sequence_length + 1 :]
+                )
+
+                generated_text = generated_text.replace(
+                    str(self.tokenizer.pad_token), " "
+                )
+
+                generated_text = generated_text.replace(
+                    str(self.tokenizer.eos_token), ""
+                ).strip()
+
+                decoded.append(generated_text)
 
             self.reporter.log_text(decoded, state.current_step)
 
