@@ -15,6 +15,7 @@ checkpoint_revision: "main"
 upload_message: "Training completed"
 
 trainer:
+  tokenizer: "HuggingFaceTB/SmolLM2-135M"
   dtype: "bf16"
   param_dtype: "fp32"
 

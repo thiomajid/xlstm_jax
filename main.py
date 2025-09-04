@@ -5,6 +5,7 @@ from dacite import from_dict
 from flax import nnx
 from omegaconf import OmegaConf
 
+from training.loss import causal_lm_loss
 from training.utils.array import create_mesh
 from xlstm_jax import xLSTMLMModel, xLSTMLMModelConfig
 
@@ -69,3 +70,5 @@ if __name__ == "__main__":
     y_jit = run(model, x_in)
 
     print(jnp.allclose(y, y_jit))
+
+    print(causal_lm_loss(y, x_in))
