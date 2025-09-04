@@ -8,6 +8,7 @@ from omegaconf import OmegaConf
 from training.loss import causal_lm_loss
 from training.utils.array import create_mesh
 from xlstm_jax import xLSTMLMModel, xLSTMLMModelConfig
+from xlstm_jax.inference import generate_sequence_scan
 
 if __name__ == "__main__":
     # create new model
@@ -17,7 +18,7 @@ if __name__ == "__main__":
     num_blocks: 4 #!
     embedding_dim: 64 #!
     tie_weights: false
-    # slstm_at: "all"
+    slstm_at: "all"
     mlstm_block:
         mlstm:
             conv1d_kernel_size: 4
@@ -40,7 +41,7 @@ if __name__ == "__main__":
         config=DaciteConfig(strict=True),
     )
 
-    mesh = create_mesh((1, 1), ("dp", "tp"))
+    mesh = create_mesh((1, 1, 1), ("dp", "tp", "debug"))
     rngs = nnx.Rngs(123)
     dtype = jnp.bfloat16
     param_dtype = jnp.float32
@@ -72,3 +73,32 @@ if __name__ == "__main__":
     print(jnp.allclose(y, y_jit))
 
     print(causal_lm_loss(y, x_in))
+
+    randint = jax.random.randint(
+        rngs(),
+        shape=(4, 10),
+        minval=0,
+        maxval=cfg.vocab_size,
+        dtype=jnp.int32,
+    )
+
+    max_new_tokens = 10
+    seq_len = randint.shape[1]
+
+    full_x_init = jnp.zeros(
+        shape=(randint.shape[0], seq_len + max_new_tokens),
+        dtype=randint.dtype,
+    )
+
+    full_x_init = full_x_init.at[:, :seq_len].set(randint)
+    carry = (full_x_init, seq_len, rngs())
+    sequences = generate_sequence_scan(
+        model,
+        carry,
+        max_new_tokens,
+        cfg.vocab_size,
+        0.675,
+        False,
+    )
+
+    print(sequences.shape)

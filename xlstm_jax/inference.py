@@ -1,77 +1,18 @@
 import functools
+from typing import Tuple
 
 import jax
 import jax.numpy as jnp
 from flax import nnx
 
-GenerationCarry = tuple[
-    jax.Array,  # The full sequence array
-    int,  # The current index in the sequence
+# the model's State (its parameters and variables) must now be part of
+# the carry to be threaded through the scan loop correctly.
+GenerationCarry = Tuple[
+    jax.Array,  # The full sequence array being built
+    int,  # The current index to write the next token
     jax.Array,  # The current PRNG key
+    nnx.State,  # The Pytree of the model's parameters
 ]
-
-
-# Define the generation step function globally or inside the jitted function
-# Making it standalone allows for cleaner separation
-def _generation_step_body(
-    model: nnx.Module,  # Pass the model object
-    carry: GenerationCarry,
-    _,  # Loop variable from scan, unused
-    vocab_size: int,
-    temperature: float,
-    greedy: bool,  # This will be a static argument passed to lax.cond predicate
-):
-    """Body function for one step of lax.scan."""
-    current_full_x, current_index, current_key = carry
-    step_key, next_key = jax.random.split(current_key)  # Split key for this step
-
-    # --- Input Preparation ---
-    input_sequence = current_full_x
-    out = model(input_sequence)  # Shape: [batch, seq_len, vocab_size]
-    batch_size = current_full_x.shape[0]
-
-    # --- Logit Selection ---
-    logits_slice = jax.lax.dynamic_slice(
-        out,
-        start_indices=(0, current_index - 1, 0),  # Last token logits
-        slice_sizes=(batch_size, 1, vocab_size),  # whole batch, 1 token, vocab size
-    )
-
-    # (B, 1, V) -> (B, V)
-    last_token_logits = jnp.squeeze(logits_slice, axis=1)
-
-    # --- Sampling ---
-    def _greedy_sample(logits, _, __):
-        return jnp.argmax(logits, axis=-1)
-
-    def _temperature_sample(logits, temp, key):
-        scaled_logits = logits / temp
-        probabilities = jax.nn.softmax(scaled_logits, axis=-1)
-        return jax.random.categorical(key, probabilities, axis=-1)
-
-    next_token = jax.lax.cond(
-        greedy,
-        _greedy_sample,
-        lambda logits, temp, key: _temperature_sample(logits, temp, key),
-        last_token_logits,
-        temperature,
-        step_key,
-    )
-
-    next_token = next_token.astype(jnp.int32)
-
-    # --- State update ---
-    # Update the full sequence array with the new token
-    updated_full_x = jax.lax.dynamic_update_slice(
-        current_full_x, next_token[:, None], (0, current_index)
-    )
-
-    # Return new carry and the collected token
-    return (
-        updated_full_x,
-        current_index + 1,
-        next_key,
-    ), next_token
 
 
 @functools.partial(
@@ -80,43 +21,88 @@ def _generation_step_body(
 )
 def generate_sequence_scan(
     model: nnx.Module,
-    initial_carry_val: GenerationCarry,
+    initial_carry_val: tuple[jax.Array, int, jax.Array],  # initial carry from caller
     max_new_tokens: int,
     vocab_size: int,
     temperature: float = 1.0,
     greedy: bool = False,
 ):
     """
-    Generates a sequence using jax.lax.scan with support for greedy or temperature sampling.
-    This function is JIT-compiled.
+    Generates a sequence using jax.lax.scan.
 
-    Args:
-        model: The NNX model object.
-        initial_carry_val: Tuple containing (initial_sequence, initial_index, initial_prng_key).
-        max_new_tokens: The number of new tokens to generate (static for JIT).
-        vocab_size: The size of the vocabulary (static for JIT).
-        temperature: Temperature for sampling (static for JIT).
-        greedy: If True, use greedy decoding (static for JIT).
-
-    Returns:
-        The final generated sequence array.
+    This version is refactored to be robust with JAX's JIT compiler by using
+    the standard "split-merge" pattern for NNX modules inside control flow.
     """
-    # Create a generation step function specific to this call's static arguments
-    generation_step_partial = functools.partial(
-        _generation_step_body,
-        model,
-        vocab_size=vocab_size,
-        temperature=temperature,
-        greedy=greedy,
+    # split the model into its GraphDef and State before entering the scan loop.
+    # lax.scan also trace arrays, therefore we need to split the model otherwise the
+    # jit tracing will conflict with the scan one, and scan can't operate on abstract arrays
+    # because it needs to create its own traced arrays
+    graphdef, state = nnx.split(model)
+
+    # Augment the initial carry with the model's state
+    initial_full_carry: GenerationCarry = (
+        initial_carry_val[0],
+        initial_carry_val[1],
+        initial_carry_val[2],
+        state,
     )
 
+    # define the body function for lax.scan inside the jiited function.
+    # this allows it to form a closure over the static `graphdef`.
+    def _generation_step_body(carry: GenerationCarry, _):
+        current_full_x, current_index, current_key, model_state = carry
+        step_key, next_key = jax.random.split(current_key)
+
+        # reconstruct the model for this step by merging the
+        # static graphdef with the current state from the carry.
+        model_for_step = nnx.merge(graphdef, model_state)
+        out = model_for_step(current_full_x)
+        batch_size = current_full_x.shape[0]
+
+        # --- Logit Selection ---
+        logits_slice = jax.lax.dynamic_slice(
+            out,
+            start_indices=(0, current_index - 1, 0),
+            slice_sizes=(batch_size, 1, vocab_size),
+        )
+
+        last_token_logits = jnp.squeeze(logits_slice, axis=1)
+
+        # --- Sampling Logic ---
+        def _greedy_sample(logits, temp, key):
+            return jnp.argmax(logits, axis=-1)
+
+        def _temperature_sample(logits, temp, key):
+            scaled_logits = logits / temp
+            return jax.random.categorical(key, scaled_logits, axis=-1)
+
+        next_token = jax.lax.cond(
+            greedy,
+            _greedy_sample,
+            _temperature_sample,
+            last_token_logits,
+            temperature,
+            step_key,
+        )
+        next_token = next_token.astype(jnp.int32)
+
+        # --- State Update ---
+        updated_full_x = jax.lax.dynamic_update_slice(
+            current_full_x, next_token[:, None], (0, current_index)
+        )
+
+        # return the new carry, threading the (unchanged) model_state
+        # through to the next iteration.
+        return (updated_full_x, current_index + 1, next_key, model_state), next_token
+
+    # --- Run the Scan ---
     final_carry, _ = jax.lax.scan(
-        generation_step_partial,  # Use the partial function
-        initial_carry_val,
-        None,  # xs, not needed here as we iterate based on length
+        _generation_step_body,
+        initial_full_carry,  # augmented carry
+        None,
         length=max_new_tokens,
     )
-    final_x = final_carry[0]  # The full sequence array
+    final_x = final_carry[0]
     return final_x
 
 
@@ -128,7 +114,7 @@ class GenerationMixin:
 
     def generate(
         self,
-        initial_carry_val: GenerationCarry,
+        initial_carry_val: Tuple[jax.Array, int, jax.Array],
         max_new_tokens: int,
         temperature: float = 1.0,
         greedy: bool = False,
