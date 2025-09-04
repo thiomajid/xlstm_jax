@@ -154,8 +154,8 @@ def main(cfg: DictConfig):
     rngs = nnx.Rngs(args.seed)
 
     model_config_dict = OmegaConf.to_container(cfg["model"], resolve=True)
-    model_config_dict["xlstm"]["vocab_size"] = tokenizer.vocab_size
-    model_config_dict["xlstm"]["pad_token_id"] = tokenizer.pad_token_id
+    model_config_dict["vocab_size"] = tokenizer.vocab_size
+    model_config_dict["pad_token_id"] = tokenizer.pad_token_id
 
     pprint(model_config_dict)
 
