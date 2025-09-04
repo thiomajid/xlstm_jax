@@ -361,7 +361,8 @@ def main(cfg: DictConfig):
 
     logger.info(f"Samples tokens shape: {SAMPLE_TOKENS.shape}")
 
-    SAMPLE_TOKENS = SAMPLE_TOKENS[:num_generation_samples, :10]  # 10 first tokens
+    CONTEXT_WINDOW = config.context_length
+    SAMPLE_TOKENS = SAMPLE_TOKENS[:num_generation_samples, : CONTEXT_WINDOW // 2]
     SAMPLE_TOKENS = jax.device_put(SAMPLE_TOKENS, DATA_SHARDING)
 
     CALLBACKS = [

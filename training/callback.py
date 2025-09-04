@@ -148,7 +148,13 @@ class GenerateTextCallback(Callback):
             decoded: list[str] = []
 
             for i in range(self.batch_size):
-                decoded.append(self.tokenizer.decode(sequences[i]))
+                decoded.append(
+                    self.tokenizer.decode(
+                        sequences[i],
+                        remove_special_tokens=True,
+                    )
+                )
+
             self.reporter.log_text(decoded, state.current_step)
 
             self.logger.info(
