@@ -228,7 +228,7 @@ class xLSTMBlockStack(nnx.Module):
         )
 
     def __call__(self, x: jax.Array):
-        x_t = x
+        x_t = None
         h_t = None
 
         if self.has_uniform_blocks:
