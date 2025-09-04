@@ -232,7 +232,7 @@ class xLSTMBlockStack(nnx.Module):
         x_t = None
         h_t = None
 
-        if self.has_uniform_blocks:
+        if False:
             x_t, h_t = _block_scan(self.blocks, x)
         else:
 
