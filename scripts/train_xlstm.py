@@ -355,10 +355,10 @@ def main(cfg: DictConfig):
     SAMPLE_TOKENS = next(iter(train_loader))["input_ids"]
     SAMPLE_TOKENS = jnp.array(SAMPLE_TOKENS)
 
-    logger.info(f"Samples tokens shape: {SAMPLE_TOKENS.shape}")
-
     if SAMPLE_TOKENS.shape[0] == 1:
         SAMPLE_TOKENS = SAMPLE_TOKENS.squeeze(0)
+
+    logger.info(f"Samples tokens shape: {SAMPLE_TOKENS.shape}")
 
     SAMPLE_TOKENS = SAMPLE_TOKENS[:num_generation_samples]
     SAMPLE_TOKENS = jax.device_put(SAMPLE_TOKENS, DATA_SHARDING)

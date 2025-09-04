@@ -27,8 +27,8 @@ def _generation_step_body(
 
     # --- Input Preparation ---
     input_sequence = current_full_x
-    out = model.generate(input_sequence)  # Shape: [batch, seq_len, vocab_size]
-    batch_size = current_full_x.shape[0]  # Get batch size dynamically
+    out = model(input_sequence)  # Shape: [batch, seq_len, vocab_size]
+    batch_size = current_full_x.shape[0]
 
     # --- Logit Selection ---
     logits_slice = jax.lax.dynamic_slice(
@@ -41,7 +41,6 @@ def _generation_step_body(
     last_token_logits = jnp.squeeze(logits_slice, axis=1)
 
     # --- Sampling ---
-    # Define functions for true/false branches of lax.cond
     def _greedy_sample(logits, _, __):
         return jnp.argmax(logits, axis=-1)
 
@@ -135,10 +134,10 @@ class GenerationMixin:
         greedy: bool = False,
     ) -> jax.Array:
         return generate_sequence_scan(
-            model=self,
-            initial_carry_val=initial_carry_val,
-            max_new_tokens=max_new_tokens,
-            vocab_size=self.vocab_size,
-            temperature=temperature,
-            greedy=greedy,
+            self,
+            initial_carry_val,
+            max_new_tokens,
+            self.vocab_size,
+            temperature,
+            greedy,
         )
