@@ -54,8 +54,8 @@ class ParamsStats:
 
 def count_parameters(module: nnx.Module):
     params = nnx.state(module, nnx.Param)
-    leaves, _ = jtu.tree_flatten(params)
-    sizes = jtu.tree_map(lambda leaf: leaf.size, leaves)
+    leaves, _ = jtu.flatten(params)
+    sizes = jtu.map(lambda leaf: leaf.size, leaves)
     total = sum(sizes)
 
     return ParamsStats(
