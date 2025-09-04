@@ -23,6 +23,9 @@ class xLSTMLMModelConfig(xLSTMBlockStackConfig):
     add_embedding_dropout: bool = False
     pad_token_id: int = 0
 
+    def __post_init__(self):
+        return super().__post_init__()
+
 
 class xLSTMLMModel(nnx.Module, GenerationMixin):
     """Language model using xLSTM blocks as its backbone.
