@@ -211,7 +211,7 @@ def main(cfg: DictConfig):
     )
 
     # Create data transforms pipeline
-    TARGET_COLUMNS = ["input_ids", "labels"]
+    TARGET_COLUMNS = ["input_ids"]
     train_transforms = [
         grain.Batch(batch_size=args.per_device_train_batch_size, drop_remainder=True),
         CollateForLanguageModeling(
