@@ -48,6 +48,8 @@ from xlstm_jax.parser import parse_xlstm_config_dict
 def lm_loss(model: xLSTMLMModel, batch: tuple[jax.Array, jax.Array]):
     input_ids, labels = batch
     logits = model(input_ids)
+    # cast logits to float32 for stability
+    logits = logits.astype(jnp.float32)
     loss = causal_lm_loss(logits, labels)
     return loss
 
@@ -419,7 +421,8 @@ def main(cfg: DictConfig):
         callbacks=CALLBACKS,
     )
 
-    trainer.train()
+    with jax.debug_nans(True):
+        trainer.train()
 
     logger.info("Everything is done")
 
