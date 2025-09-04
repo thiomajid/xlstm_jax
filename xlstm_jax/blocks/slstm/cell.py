@@ -1,6 +1,6 @@
 # Copyright (c) NXAI GmbH and its affiliates 2023
 # Korbinian Poeppel
-# Converted to JAX/Flax by Abdoul Majid O. Thiombiano
+# Ported to JAX/Flax by Abdoul Majid O. Thiombiano
 import logging
 from dataclasses import dataclass
 from typing import Literal, Optional, Sequence, Tuple, Union
@@ -9,8 +9,8 @@ import chex
 import jax
 import jax.numpy as jnp
 from flax import nnx
+from flax.nnx.nn import dtypes
 from jax.sharding import Mesh
-from jax.sharding import PartitionSpec as P
 
 from .src.vanilla import (
     slstm_forward,
@@ -117,15 +117,14 @@ class sLSTMCellConfig:
 class sLSTMCellBase(nnx.Module):
     """Base class for sLSTM cell implementation in JAX/Flax."""
 
-    config_class = sLSTMCellConfig
-
     def __init__(
         self,
         config: sLSTMCellConfig,
         *,
         mesh: Mesh,
         rngs: nnx.Rngs,
-        dtype=jnp.float32,
+        dtype=jnp.bfloat16,
+        param_dtype=jnp.float32,
     ):
         # Check configuration validity
         if config.hidden_size % config.num_heads != 0:
@@ -148,91 +147,103 @@ class sLSTMCellBase(nnx.Module):
         self.recurrent_weight_init = config.recurrent_weight_init
         self.bias_init = config.bias_init
 
+        self.promote_dtype = dtypes.promote_dtype
+        self.dtype = dtype
+
         # Initialize recurrent kernel
+        kernel_init = nnx.with_partitioning(
+            self._initialize_recurrent_kernel(),
+            sharding=(None, None, None, "tp"),
+            mesh=mesh,
+        )
+
         self._recurrent_kernel_ = nnx.Param(
-            jnp.zeros(
+            kernel_init(
+                rngs.params(),
                 (config.num_heads, head_dim, config.num_gates, head_dim),
-                dtype=dtype,
-            ),
-            init_fn=nnx.with_partitioning(
-                self._initialize_recurrent_kernel,
-                sharding=(None, None, None, "tp"),
-                mesh=mesh,
-            ),
+                param_dtype,
+            )
         )
 
         # Initialize bias
+        bias_init = nnx.with_partitioning(
+            self._initialize_bias(),
+            sharding=(None, None, "tp"),
+            mesh=mesh,
+        )
         self._bias_ = nnx.Param(
-            jnp.zeros(
+            bias_init(
+                rngs.params(),
                 (config.num_heads, config.num_gates, head_dim),
-                dtype=dtype,
-            ),
-            init_fn=nnx.with_partitioning(
-                self._initialize_bias,
-                sharding=(None, None, "tp"),
-                mesh=mesh,
-            ),
+                param_dtype,
+            )
         )
 
-    def _initialize_recurrent_kernel(self, key, shape):
-        result = jnp.zeros(shape)
-        head_dim = self.head_dim
+    def _initialize_recurrent_kernel(self):
+        def init(key: jax.Array, shape: tuple[int, ...], dtype=jnp.float_):
+            result = jnp.zeros(shape, dtype=dtype)
+            head_dim = self.head_dim
 
-        if self.recurrent_weight_init == "zeros":
-            # Keep zeros
-            pass
-        elif self.recurrent_weight_init == "standard":
-            subkey = jax.random.split(key, self.num_heads * self.num_gates)
-            scale = 1.0 / jnp.sqrt(self.hidden_size)
+            if self.recurrent_weight_init == "zeros":
+                # Keep zeros
+                pass
+            elif self.recurrent_weight_init == "standard":
+                subkey = jax.random.split(key, self.num_heads * self.num_gates)
+                scale = 1.0 / jnp.sqrt(self.hidden_size)
+
+                for h in range(self.num_heads):
+                    for i in range(self.num_gates):
+                        idx = h * self.num_gates + i
+                        result = result.at[h, :, i, :].set(
+                            jax.random.uniform(
+                                subkey[idx],
+                                (head_dim, head_dim),
+                                minval=-scale,
+                                maxval=scale,
+                            )
+                        )
+
+            return result
+
+        return init
+
+    def _initialize_bias(self):
+        def init(key: jax.Array, shape: tuple[int, ...], dtype=jnp.float_):
+            result = jnp.zeros(shape, dtype=dtype)
+            head_dim = self.head_dim
 
             for h in range(self.num_heads):
-                for i in range(self.num_gates):
-                    idx = h * self.num_gates + i
-                    result = result.at[h, :, i, :].set(
-                        jax.random.uniform(
-                            subkey[idx],
-                            (head_dim, head_dim),
-                            minval=-scale,
-                            maxval=scale,
+                for i, gate in enumerate(["i", "f", "z", "o"]):
+                    if self.bias_init == "powerlaw_blockdependent" and gate == "f":
+                        # Special initialization for forget gates
+                        ratio_0_to_1 = (
+                            self._block_idx / (self._num_blocks - 1)
+                            if self._num_blocks > 1
+                            else 0.0
                         )
-                    )
 
-        return result
+                        positions = jnp.arange(head_dim) / (head_dim - 1)
+                        power = 0.3 + 1.3 * ratio_0_to_1
+                        init_values = -(-5.0 + 12.0 * positions**power)
+                        result = result.at[h, i, :].set(init_values)
 
-    def _initialize_bias(self, key, shape):
-        result = jnp.zeros(shape)
-        head_dim = self.head_dim
+                    elif self.bias_init == "small_init" and gate == "f":
+                        # Linear spacing for forget gate bias
+                        init_values = jnp.linspace(3.0, 6.0, head_dim)
+                        result = result.at[h, i, :].set(init_values)
 
-        for h in range(self.num_heads):
-            for i, gate in enumerate(["i", "f", "z", "o"]):
-                if self.bias_init == "powerlaw_blockdependent" and gate == "f":
-                    # Special initialization for forget gates
-                    ratio_0_to_1 = (
-                        self._block_idx / (self._num_blocks - 1)
-                        if self._num_blocks > 1
-                        else 0.0
-                    )
+                    elif self.bias_init == "standard":
+                        # Standard uniform initialization
+                        scale = 1 / jnp.sqrt(self.hidden_size)
+                        subkey = jax.random.fold_in(key, h * self.num_gates + i)
+                        values = jax.random.uniform(
+                            subkey, (head_dim,), minval=-scale, maxval=scale
+                        )
+                        result = result.at[h, i, :].set(values)
 
-                    positions = jnp.arange(head_dim) / (head_dim - 1)
-                    power = 0.3 + 1.3 * ratio_0_to_1
-                    init_values = -(-5.0 + 12.0 * positions**power)
-                    result = result.at[h, i, :].set(init_values)
+            return result
 
-                elif self.bias_init == "small_init" and gate == "f":
-                    # Linear spacing for forget gate bias
-                    init_values = jnp.linspace(3.0, 6.0, head_dim)
-                    result = result.at[h, i, :].set(init_values)
-
-                elif self.bias_init == "standard":
-                    # Standard uniform initialization
-                    scale = 1 / jnp.sqrt(self.hidden_size)
-                    subkey = jax.random.fold_in(key, h * self.num_gates + i)
-                    values = jax.random.uniform(
-                        subkey, (head_dim,), minval=-scale, maxval=scale
-                    )
-                    result = result.at[h, i, :].set(values)
-
-        return result
+        return init
 
     @property
     def head_dim(self):
@@ -333,18 +344,21 @@ class sLSTMCellBase(nnx.Module):
 
 
 class sLSTMCell_vanilla(sLSTMCellBase):
-    """Vanilla implementation of sLSTM cell using JAX/Flax."""
-
-    config_class = sLSTMCellConfig
-
     def __init__(
         self,
         config: sLSTMCellConfig,
         mesh: Mesh,
         rngs: nnx.Rngs,
-        dtype=jnp.float32,
+        dtype=jnp.bfloat16,
+        param_dtype=jnp.float32,
     ):
-        super().__init__(config, mesh=mesh, rngs=rngs, dtype=dtype)
+        super().__init__(
+            config,
+            mesh=mesh,
+            rngs=rngs,
+            dtype=dtype,
+            param_dtype=param_dtype,
+        )
 
         # Load pointwise function
         self.pointwise = slstm_pointwise_function_registry[config.function]
@@ -403,9 +417,14 @@ class sLSTMCell_vanilla(sLSTMCellBase):
         rk_internal = self._recurrent_kernel_ext2int(self._recurrent_kernel_)
         bias_internal = self._bias_ext2int(self._bias_)
 
-        with self.mesh:
-            input = jax.lax.with_sharding_constraint(input, P(None, "dp", None))
-            state = jax.lax.with_sharding_constraint(state, P(None, "dp", "tp"))
+        rk_internal, bias_internal, input, state = self.promote_dtype(
+            (rk_internal, bias_internal, input, state),
+            dtype=self.dtype,
+        )
+
+        # with self.mesh:
+        #     input = jax.lax.with_sharding_constraint(input, P(None, "dp", None))
+        #     state = jax.lax.with_sharding_constraint(state, P(None, "dp", "tp"))
 
         return slstm_forward(
             input,
@@ -435,15 +454,20 @@ class sLSTMCell_vanilla(sLSTMCellBase):
 class sLSTMCell(nnx.Module):
     """Factory class for sLSTM cell that returns vanilla implementation."""
 
-    config_class = sLSTMCellConfig
-
     def __new__(
         cls,
         config: sLSTMCellConfig,
         mesh: Mesh,
         rngs: nnx.Rngs,
-        dtype=jnp.float32,
+        dtype=jnp.bfloat16,
+        param_dtype=jnp.float32,
     ):
         # Override config to ensure vanilla backend
         config.backend = "vanilla"
-        return sLSTMCell_vanilla(config, mesh=mesh, rngs=rngs, dtype=dtype)
+        return sLSTMCell_vanilla(
+            config,
+            mesh=mesh,
+            rngs=rngs,
+            dtype=dtype,
+            param_dtype=param_dtype,
+        )

@@ -1,6 +1,6 @@
 # Copyright (c) NXAI GmbH and its affiliates 2024
 # Maximilian Beck
-# Converted to JAX/Flax by Abdoul Majid O. Thiombiano
+# Ported to JAX/Flax by Abdoul Majid O. Thiombiano
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -33,15 +33,14 @@ class mLSTMBlock(xLSTMBlock):
     and not the sLSTM or feedforward components.
     """
 
-    config_class = mLSTMBlockConfig
-
     def __init__(
         self,
         config: mLSTMBlockConfig,
         *,
         mesh: jax.sharding.Mesh,
         rngs: nnx.Rngs,
-        dtype=jnp.float32,
+        dtype=jnp.bfloat16,
+        param_dtype=jnp.float32,
     ) -> None:
         """Initialize an mLSTM block.
 
@@ -58,4 +57,10 @@ class mLSTMBlock(xLSTMBlock):
         )
 
         # Initialize using the parent class constructor
-        super().__init__(config=xlstm_config, mesh=mesh, rngs=rngs, dtype=dtype)
+        super().__init__(
+            config=xlstm_config,
+            mesh=mesh,
+            rngs=rngs,
+            dtype=dtype,
+            param_dtype=param_dtype,
+        )

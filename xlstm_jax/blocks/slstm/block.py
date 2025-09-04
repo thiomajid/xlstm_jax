@@ -1,6 +1,6 @@
 # Copyright (c) NXAI GmbH and its affiliates 2024
 # Korbininan Pöppel
-# Converted to JAX/Flax by Abdoul Majid O. Thiombiano
+# Ported to JAX/Flax by Abdoul Majid O. Thiombiano
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -43,22 +43,20 @@ class sLSTMBlock(xLSTMBlock):
     This specialized block uses sLSTM layer and optionally a feedforward component.
     """
 
-    config_class = sLSTMBlockConfig
-
     def __init__(
         self,
         config: sLSTMBlockConfig,
         *,
         mesh: Mesh,
         rngs: nnx.Rngs,
-        dtype=jnp.float32,
+        dtype=jnp.bfloat16,
+        param_dtype=jnp.float32,
     ):
         """Initialize an sLSTM block.
 
         Args:
             config: Configuration object for the sLSTM block
         """
-        # Create an xLSTM config with only the sLSTM component active
         xlstm_config = xLSTMBlockConfig(
             mlstm=None,
             slstm=config.slstm,
@@ -67,5 +65,10 @@ class sLSTMBlock(xLSTMBlock):
             _num_blocks=config._num_blocks,
         )
 
-        # Initialize using the parent class constructor
-        super().__init__(config=xlstm_config, mesh=mesh, rngs=rngs, dtype=dtype)
+        super().__init__(
+            config=xlstm_config,
+            mesh=mesh,
+            rngs=rngs,
+            dtype=dtype,
+            param_dtype=param_dtype,
+        )

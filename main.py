@@ -1,15 +1,71 @@
-import json
-
+import jax
+import jax.numpy as jnp
+from dacite import Config as DaciteConfig
+from dacite import from_dict
 from flax import nnx
+from omegaconf import OmegaConf
 
-from xlstm_jax import xLSTMLMModel
-from xlstm_jax.utils import load_model_from_checkpoint, parse_xlstm_config_dict
+from training.utils.array import create_mesh
+from xlstm_jax import xLSTMLMModel, xLSTMLMModelConfig
 
 if __name__ == "__main__":
-    with open("./outputs/2025-05-03/04-18-59/artifacts/config.json") as f:
-        config_dict = json.load(f)
-    config = parse_xlstm_config_dict(config_dict)
-    model = xLSTMLMModel(config, rngs=nnx.Rngs(0))
-    restored_model = load_model_from_checkpoint(
-        model, checkpoint_path="./outputs/2025-05-03/04-18-59/artifacts/state"
+    # create new model
+    xlstm_cfg = """ 
+    vocab_size: 128
+    context_length: 32      
+    num_blocks: 4 #!
+    embedding_dim: 64 #!
+    tie_weights: false
+    # slstm_at: "all"
+    mlstm_block:
+        mlstm:
+            conv1d_kernel_size: 4
+            qkv_proj_blocksize: 4
+            num_heads: 4
+    
+    slstm_block:
+        slstm:
+            conv1d_kernel_size: 4
+            num_heads: 4
+        feedforward:
+            proj_factor: 1.2
+            act_fn: "selu"
+    
+    """
+    cfg = OmegaConf.create(xlstm_cfg)
+    cfg = from_dict(
+        data_class=xLSTMLMModelConfig,
+        data=OmegaConf.to_container(cfg),
+        config=DaciteConfig(strict=True),
     )
+
+    mesh = create_mesh((1, 1), ("dp", "tp"))
+    rngs = nnx.Rngs(123)
+    dtype = jnp.bfloat16
+    param_dtype = jnp.float32
+
+    model = xLSTMLMModel(
+        cfg,
+        mesh=mesh,
+        rngs=rngs,
+        dtype=dtype,
+        param_dtype=param_dtype,
+    )
+
+    @nnx.jit
+    def run(model, x):
+        return model(x)
+
+    x_in = jax.random.randint(
+        rngs(),
+        shape=(2, 32),
+        minval=0,
+        maxval=cfg.vocab_size,
+    )
+
+    y = model(x_in)
+    print(y.shape)
+
+    y_jit = run(model, x_in)
+
+    print(jnp.allclose(y, y_jit))

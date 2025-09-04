@@ -1,6 +1,6 @@
 # Copyright (c) NXAI GmbH and its affiliates 2024
 # Maximilian Beck
-# Converted to JAX/Flax by Abdoul Majid O. Thiombiano
+# Ported to JAX/Flax by Abdoul Majid O. Thiombiano
 from dataclasses import dataclass
 from typing import Optional
 
@@ -9,7 +9,7 @@ import jax.numpy as jnp
 from flax import nnx
 
 from ..components.feedforward import FeedForwardConfig, create_feedforward
-from ..components.ln import LayerNorm
+from ..components.ln import RMSNorm
 from .mlstm.layer import mLSTMLayer, mLSTMLayerConfig
 from .slstm.layer import sLSTMLayer, sLSTMLayerConfig
 
@@ -58,16 +58,15 @@ class xLSTMBlock(nnx.Module):
     It contains the pre-LayerNorms and the skip connections.
     """
 
-    config_class = xLSTMBlockConfig
-
     def __init__(
         self,
         config: xLSTMBlockConfig,
         *,
         mesh: jax.sharding.Mesh,
         rngs: nnx.Rngs,
-        dtype=jnp.float32,
-    ) -> None:
+        dtype=jnp.bfloat16,
+        param_dtype=jnp.float32,
+    ):
         """Initialize an xLSTM block.
 
         Args:
@@ -80,35 +79,43 @@ class xLSTMBlock(nnx.Module):
             else config.slstm.embedding_dim
         )
 
-        self.xlstm_norm: nnx.LayerNorm = LayerNorm(
+        self.xlstm_norm = RMSNorm(
             num_features=embedding_dim,
             use_scale=True,
-            use_bias=False,
             rngs=rngs,
-            dtype=dtype,
             mesh=mesh,
+            dtype=dtype,
+            param_dtype=param_dtype,
         )
 
         if config.mlstm is not None:
             self.xlstm = mLSTMLayer(
-                config=config.mlstm, mesh=mesh, rngs=rngs, dtype=dtype
+                config=config.mlstm,
+                mesh=mesh,
+                rngs=rngs,
+                dtype=dtype,
+                param_dtype=param_dtype,
             )
 
         elif config.slstm is not None:
             self.xlstm = sLSTMLayer(
-                config=config.slstm, mesh=mesh, rngs=rngs, dtype=dtype
+                config=config.slstm,
+                mesh=mesh,
+                rngs=rngs,
+                dtype=dtype,
+                param_dtype=param_dtype,
             )
         else:
             raise ValueError("Either mlstm or slstm must be provided")
 
         if config.feedforward is not None:
-            self.ffn_norm = LayerNorm(
+            self.ffn_norm = RMSNorm(
                 num_features=config.feedforward.embedding_dim,
                 use_scale=True,
-                use_bias=False,
+                mesh=mesh,
                 rngs=rngs,
                 dtype=dtype,
-                mesh=mesh,
+                param_dtype=param_dtype,
             )
 
             self.ffn = create_feedforward(
@@ -116,20 +123,13 @@ class xLSTMBlock(nnx.Module):
                 mesh=mesh,
                 rngs=rngs,
                 dtype=dtype,
+                param_dtype=param_dtype,
             )
         else:
             self.ffn_norm = None
             self.ffn = None
 
     def __call__(self, x: jax.Array):
-        """Process a full sequence through the xLSTM block.
-
-        Args:
-            x: Input tensor of shape (B, S, D)
-
-        Returns:
-            Output tensor of shape (B, S, D)
-        """
         x_normed = self.xlstm_norm(x)
         x_xlstm = self.xlstm(x_normed)
         x = x + x_xlstm
