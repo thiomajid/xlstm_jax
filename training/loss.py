@@ -1,4 +1,5 @@
 import jax
+import jax.numpy as jnp
 import optax
 from einops import rearrange
 
@@ -13,9 +14,10 @@ def causal_lm_loss(logits: jax.Array, labels: jax.Array) -> jax.Array:
 
     # shape: [batch, seq] -> [batch * (seq-1)]
     shifted_labels = rearrange(labels[..., 1:], "b s -> (b s)")
+    shifted_labels = jnp.astype(shifted_labels, logits.dtype)
 
     # Compute cross-entropy loss
-    ce_loss = optax.softmax_cross_entropy_with_integer_labels(
+    ce_loss = optax.safe_softmax_cross_entropy(
         logits=shifted_logits,
         labels=shifted_labels,
     ).mean()

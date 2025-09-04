@@ -196,35 +196,39 @@ class Trainer:
                 leave=False,
             )
 
-            for batch in eval_pbar:
-                eval_batch_count += 1
-                input_ids = jnp.array(batch["input_ids"])
-                labels = jnp.array(batch["labels"], dtype=labels_dtype)
+            with jax.debug_nans(True):
+                for batch in eval_pbar:
+                    eval_batch_count += 1
+                    input_ids = jnp.array(batch["input_ids"])
+                    labels = jnp.array(batch["labels"], dtype=labels_dtype)
 
-                # Grain may add an additional batch dim
-                if input_ids.shape[0] == 1:
-                    input_ids = input_ids.squeeze(0)
+                    # Grain may add an additional batch dim
+                    if input_ids.shape[0] == 1:
+                        input_ids = input_ids.squeeze(0)
 
-                if labels.shape[0] == 1:
-                    labels = labels.squeeze(0)
+                    if labels.shape[0] == 1:
+                        labels = labels.squeeze(0)
 
-                # Data placement
-                input_ids = jax.device_put(input_ids, self.data_sharding)
-                labels = jax.device_put(labels, self.data_sharding)
-                step_batch = (input_ids, labels)
-                self._eval_step_fn(self.model, step_batch, self.eval_metrics)
+                    # Data placement
+                    input_ids = jax.device_put(input_ids, self.data_sharding)
+                    labels = jax.device_put(labels, self.data_sharding)
+                    step_batch = (input_ids, labels)
 
-                self.logger.info(f"Processed {eval_batch_count} evaluation batches")
-                eval_end_time = perf_counter()
-                eval_duration = eval_end_time - eval_start_time
+                    self._eval_step_fn(self.model, step_batch, self.eval_metrics)
 
-                self.reporter.log_scalar(
-                    "timing/eval_duration",
-                    eval_duration,
-                    self.state.current_step,
-                )
+                    self.logger.info(f"Processed {eval_batch_count} evaluation batches")
+                    eval_end_time = perf_counter()
+                    eval_duration = eval_end_time - eval_start_time
 
-                self.logger.info(f"Evaluation completed in {eval_duration:.2f} seconds")
+                    self.reporter.log_scalar(
+                        "timing/eval_duration",
+                        eval_duration,
+                        self.state.current_step,
+                    )
+
+                    self.logger.info(
+                        f"Evaluation completed in {eval_duration:.2f} seconds"
+                    )
 
             # Record epoch duration and log to TensorBoard
             epoch_end_time = perf_counter()
