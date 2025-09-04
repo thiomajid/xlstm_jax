@@ -22,7 +22,7 @@ class TrainingArguments:
     adam_beta1: float
     adam_beta2: float
     warmup_ratio: float
-    max_grad_norm: float = 1.0
+    max_grad_norm: float
 
     # logging and checkpoints
     logging_steps: int
