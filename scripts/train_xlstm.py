@@ -11,6 +11,7 @@ from pprint import pprint
 import grain.python as grain
 import hydra
 import jax
+import jax.debug
 import jax.numpy as jnp
 import optax
 import orbax.checkpoint as ocp
@@ -60,9 +61,19 @@ def train_step(
 ):
     grad_fn = nnx.value_and_grad(lm_loss)
     loss, grads = grad_fn(model, batch)
-    optimizer.update(model, grads)
+
+    # Debugging NaNs
+    jax.debug.print("loss: {loss}", loss=loss)
+    is_nan_loss = jnp.isnan(loss)
+    jax.debug.print("is_nan_loss: {is_nan_loss}", is_nan_loss=is_nan_loss)
 
     grad_norm = optax.global_norm(grads)
+    jax.debug.print("grad_norm: {grad_norm}", grad_norm=grad_norm)
+    is_nan_grad = jnp.isnan(grad_norm)
+    jax.debug.print("is_nan_grad: {is_nan_grad}", is_nan_grad=is_nan_grad)
+
+    optimizer.update(model, grads)
+
     metrics.update(
         loss=loss,
         perplexity=jnp.exp(loss),
