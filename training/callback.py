@@ -159,8 +159,8 @@ class GenerateTextCallback(Callback):
                 generated_text = (
                     "**"
                     + initial_text
-                    + "**"
-                    + generated_text[self.initial_sequence_length + 1 :]
+                    + "** |GENERATED START HERE|"
+                    + generated_text[self.initial_sequence_length :]
                 )
 
                 generated_text = generated_text.replace(

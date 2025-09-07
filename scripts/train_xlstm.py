@@ -148,9 +148,9 @@ def main(cfg: DictConfig):
         tokenizer.pad_token = tokenizer.eos_token
         logger.warning("Padding token set to EOS token.")
 
-    if tokenizer.padding_side == "right":
-        tokenizer.padding_side = "left"
-        logger.warning("Changed the tokenizer's padding_side from right to left")
+    # if tokenizer.padding_side == "right":
+    #     tokenizer.padding_side = "left"
+    #     logger.warning("Changed the tokenizer's padding_side from right to left")
 
     # Create model config from cfg
     log_node_devices_stats(logger)
