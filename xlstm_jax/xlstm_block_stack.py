@@ -11,7 +11,7 @@ from flax import nnx
 
 from .blocks.mlstm.block import mLSTMBlock, mLSTMBlockConfig
 from .blocks.slstm.block import sLSTMBlock, sLSTMBlockConfig
-from .components.ln import RMSNorm
+from .components.ln import LayerNorm
 
 
 @dataclass(unsafe_hash=True, order=True)
@@ -216,11 +216,11 @@ class xLSTMBlockStack(nnx.Module):
         )
 
         self.post_blocks_norm = (
-            RMSNorm(
+            LayerNorm(
                 num_features=config.embedding_dim,
                 rngs=rngs,
                 mesh=mesh,
-                dtype=jnp.float32,
+                dtype=dtype,
                 param_dtype=param_dtype,
             )
             if config.add_post_blocks_norm

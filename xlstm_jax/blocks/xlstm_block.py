@@ -9,7 +9,7 @@ import jax.numpy as jnp
 from flax import nnx
 
 from ..components.feedforward import FeedForwardConfig, create_feedforward
-from ..components.ln import RMSNorm
+from ..components.ln import LayerNorm
 from .mlstm.layer import mLSTMLayer, mLSTMLayerConfig
 from .slstm.layer import sLSTMLayer, sLSTMLayerConfig
 
@@ -79,12 +79,13 @@ class xLSTMBlock(nnx.Module):
             else config.slstm.embedding_dim
         )
 
-        self.xlstm_norm = RMSNorm(
+        self.xlstm_norm = LayerNorm(
             num_features=embedding_dim,
             use_scale=True,
+            use_bias=False,
             rngs=rngs,
             mesh=mesh,
-            dtype=jnp.float32,
+            dtype=dtype,
             param_dtype=param_dtype,
         )
 
@@ -109,12 +110,13 @@ class xLSTMBlock(nnx.Module):
             raise ValueError("Either mlstm or slstm must be provided")
 
         if config.feedforward is not None:
-            self.ffn_norm = RMSNorm(
+            self.ffn_norm = LayerNorm(
                 num_features=config.feedforward.embedding_dim,
                 use_scale=True,
+                use_bias=False,
                 mesh=mesh,
                 rngs=rngs,
-                dtype=jnp.float32,
+                dtype=dtype,
                 param_dtype=param_dtype,
             )
 
