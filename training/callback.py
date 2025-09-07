@@ -155,12 +155,12 @@ class GenerateTextCallback(Callback):
 
                 # add markdown bold delimiters to distinguish the original text
                 # from the generated one
-                initial_text = generated_text[: self.initial_sequence_length + 1]
+                initial_text = generated_text[: self.initial_sequence_length]
                 generated_text = (
                     "**"
                     + initial_text
                     + "** |GENERATED START HERE|"
-                    + generated_text[self.initial_sequence_length + 2 :]
+                    + generated_text[self.initial_sequence_length :]
                 )
 
                 generated_text = generated_text.replace(
