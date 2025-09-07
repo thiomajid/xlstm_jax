@@ -113,6 +113,7 @@ class Trainer:
                 leave=True,
             )
 
+            metrics_postfix_data = {}
             train_pbar.set_description(epoch_desc)
             self.model.train()
 
@@ -142,6 +143,26 @@ class Trainer:
 
                 postfix_data = {}
 
+                # Logging
+                if self.state.current_step % self.args.logging_steps == 0:
+                    computed_metrics = self.train_metrics.compute()
+                    for metric, value in computed_metrics.items():
+                        self.reporter.log_scalar(
+                            f"train/{metric}",
+                            value,
+                            self.state.current_step,
+                        )
+
+                    self.train_metrics.reset()
+
+                    metrics_postfix_data.update(
+                        step=f"{self.state.current_step}/{self.steps_config.max_steps}",
+                        opt_step=f"{self.state.optimizer_step}/{self.steps_config.max_optimizer_steps}",
+                        loss=f"{loss.item():.6f}",
+                        grad_norm=f"{grad_norm.item():.4f}",
+                    )
+                    # train_pbar.set_postfix(postfix_data)
+
                 # Check if it's time for optimizer step
                 is_update_step = (
                     self.state.current_step % self.args.gradient_accumulation_steps == 0
@@ -157,27 +178,7 @@ class Trainer:
                     )
 
                     postfix_data["lr"] = f"{current_lr:.2e}"
-                    train_pbar.set_postfix(postfix_data)
-
-                # Logging
-                if self.state.current_step % self.args.logging_steps == 0:
-                    computed_metrics = self.train_metrics.compute()
-                    for metric, value in computed_metrics.items():
-                        self.reporter.log_scalar(
-                            f"train/{metric}",
-                            value,
-                            self.state.current_step,
-                        )
-
-                    self.train_metrics.reset()
-
-                    postfix_data = {
-                        "step": f"{self.state.current_step}/{self.steps_config.max_steps}",
-                        "opt_step": f"{self.state.optimizer_step}/{self.steps_config.max_optimizer_steps}",
-                        "loss": f"{loss.item():.6f}",
-                        "grad_norm": f"{grad_norm.item():.4f}",
-                    }
-                    train_pbar.set_postfix(postfix_data)
+                    train_pbar.set_postfix(postfix_data.update(**metrics_postfix_data))
 
                 current_desc = f"Epoch {epoch + 1}/{self.args.num_train_epochs} (Step {self.state.current_step}/{self.steps_config.max_steps}, Opt {self.state.optimizer_step}/{self.steps_config.max_optimizer_steps})"
                 train_pbar.set_description(current_desc)
