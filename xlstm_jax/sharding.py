@@ -186,7 +186,6 @@ class xLSTMBlockShardingConfig:
 
 @dataclass(slots=True)
 class mLSTMBlockShardingConfig(xLSTMBlockShardingConfig):
-    @tp.override
     @staticmethod
     def get_default_sharding():
         shd = mLSTMBlockShardingConfig(
@@ -201,7 +200,6 @@ class mLSTMBlockShardingConfig(xLSTMBlockShardingConfig):
 
 
 class sLSTMBlockShardingConfig(xLSTMBlockShardingConfig):
-    @tp.override
     @staticmethod
     def get_default_sharding():
         shd = mLSTMBlockShardingConfig(
