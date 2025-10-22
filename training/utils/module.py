@@ -67,24 +67,32 @@ def count_parameters(module: nnx.Module):
 def load_checkpoint_state(
     model: nnx.Module,
     checkpoint_path: str | Path,
+    step: int,
+    mesh: jax.sharding.Mesh,
 ) -> nnx.Module:
     """Load a model from a checkpoint."""
-    abstract_model = nnx.eval_shape(lambda: model)
-    graphdef, abstract_state = nnx.split(abstract_model)
-    print("Created abstract state")
 
-    if isinstance(checkpoint_path, str):
-        checkpoint_path = Path(checkpoint_path).absolute()
+    with ocp.CheckpointManager(checkpoint_path) as mngr:
+        jax.debug.print("=" * 30)
+        jax.debug.print(
+            "Ensuring that the sharding matches the current device topology"
+        )
 
-    if not checkpoint_path.exists():
-        raise FileNotFoundError(f"Checkpoint path {checkpoint_path} does not exist.")
+        # `get_abstract_model` handles device topology changes
+        graphdef, abstract_state = nnx.get_abstract_model(lambda: model, mesh)
 
-    checkpointer = ocp.PyTreeCheckpointer()
-    restored_state = checkpointer.restore(checkpoint_path, abstract_state)
-    # nnx.replace_by_pure_dict(abstract_state, restored_state)
-    merged_model = nnx.merge(graphdef, restored_state)
-    print("Merged state with the model.")
-    return merged_model
+        # def set_sharding(x: jax.ShapeDtypeStruct):
+        #     spec = x.sharding.spec
+        #     return x.update(sharding=NamedSharding(mesh, spec))
+
+        # new_topology_state = jax.tree.map(set_sharding, abstract_state)
+        jax.debug.print("=" * 30)
+        jax.debug.print("Restoring checkpoint state")
+        restored = mngr.restore(step, args=ocp.args.StandardRestore(abstract_state))
+
+        nnx.update(model, restored)
+
+    return model
 
 
 def load_sharded_checkpoint_state(
