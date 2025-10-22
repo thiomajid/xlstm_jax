@@ -161,13 +161,14 @@ class Trainer:
 
                     self.train_metrics.reset()
 
+                    # Update metrics for progress bar display
+                    for metric, value in computed_metrics.items():
+                        metrics_postfix_data[metric] = f"{value:.6f}"
+
                     metrics_postfix_data.update(
-                        step=f"{self.state.current_step}/{self.steps_config.max_steps}",
-                        opt_step=f"{self.state.optimizer_step}/{self.steps_config.max_optimizer_steps}",
                         loss=f"{loss.item():.6f}",
                         grad_norm=f"{grad_norm.item():.4f}",
                     )
-                    # train_pbar.set_postfix(postfix_data)
 
                 # Check if it's time for optimizer step
                 is_update_step = (
@@ -184,11 +185,13 @@ class Trainer:
                     )
 
                     postfix_data["lr"] = f"{current_lr:.2e}"
-                    train_pbar.set_postfix(postfix_data.update(**metrics_postfix_data))
+
+                # Update progress bar with all available metrics
+                postfix_data.update(metrics_postfix_data)
+                train_pbar.set_postfix(postfix_data)
 
                 current_desc = f"Epoch {epoch + 1}/{self.args.num_train_epochs} (Step {self.state.current_step}/{self.steps_config.max_steps}, Opt {self.state.optimizer_step}/{self.steps_config.max_optimizer_steps})"
                 train_pbar.set_description(current_desc)
-                # train_pbar.update(1)
 
             #! Evaluation after each epoch
             self.logger.info(f"Starting evaluation after epoch {epoch + 1}...")
@@ -320,6 +323,70 @@ class Trainer:
             shutil.copytree(tb_logs_source, tb_logs_target, dirs_exist_ok=True)
             self.logger.info(f"TensorBoard logs copied to {tb_logs_target}")
 
+        # Copy only the best checkpoint to the output directory
+        checkpoint_dir = Path(self.args.logging_dir)
+        best_checkpoint_step = self.state.best_checkpoint_step
+        output_checkpoint_path = artifacts_dir / "model_checkpoint"
+        checkpoint_copied = False
+
+        if best_checkpoint_step >= 0:
+            best_checkpoint_path = checkpoint_dir / str(best_checkpoint_step)
+
+            if best_checkpoint_path.exists():
+                self.logger.info(
+                    f"Copying best checkpoint (step {best_checkpoint_step}, {self.args.best_metric_key}={self.state.best_metric_value:.6f}) to {output_checkpoint_path}"
+                )
+                shutil.copytree(
+                    best_checkpoint_path, output_checkpoint_path, dirs_exist_ok=True
+                )
+                self.logger.info(f"Best checkpoint saved to {output_checkpoint_path}")
+                checkpoint_copied = True
+            else:
+                self.logger.warning(
+                    f"Best checkpoint path {best_checkpoint_path} does not exist."
+                )
+        else:
+            self.logger.warning("No best checkpoint recorded.")
+
+        # Fallback: copy the latest checkpoint if best checkpoint wasn't copied
+        if not checkpoint_copied:
+            self.logger.info("Attempting to copy the latest checkpoint instead...")
+            # Find all numeric subdirectories (checkpoint steps)
+            checkpoint_steps = []
+            if checkpoint_dir.exists():
+                for item in checkpoint_dir.iterdir():
+                    if item.is_dir() and item.name.isdigit():
+                        checkpoint_steps.append(int(item.name))
+
+            if checkpoint_steps:
+                latest_step = max(checkpoint_steps)
+                latest_checkpoint_path = checkpoint_dir / str(latest_step)
+
+                if latest_checkpoint_path.exists():
+                    self.logger.info(
+                        f"Copying latest checkpoint (step {latest_step}) to {output_checkpoint_path}"
+                    )
+                    shutil.copytree(
+                        latest_checkpoint_path,
+                        output_checkpoint_path,
+                        dirs_exist_ok=True,
+                    )
+                    self.logger.info(
+                        f"Latest checkpoint saved to {output_checkpoint_path}"
+                    )
+                    checkpoint_copied = True
+                else:
+                    self.logger.warning(
+                        f"Latest checkpoint path {latest_checkpoint_path} does not exist."
+                    )
+            else:
+                self.logger.warning(
+                    f"No checkpoint directories found in {checkpoint_dir}."
+                )
+
+        if not checkpoint_copied:
+            self.logger.warning("No checkpoint was copied to the output directory.")
+
         # Save training history (keeping minimal data for compatibility)
         training_summary = {
             "total_training_duration": total_training_duration,
@@ -327,6 +394,9 @@ class Trainer:
             "num_epochs_completed": len(epoch_durations),
             "global_steps": self.state.current_step,
             "global_optimizer_steps": self.state.optimizer_step,
+            "best_checkpoint_step": self.state.best_checkpoint_step,
+            "best_metric_value": self.state.best_metric_value,
+            "best_metric_key": self.args.best_metric_key,
             "params": asdict(count_parameters(self.model)),
         }
         with open(artifacts_dir / "train_history.json", "w") as f:
