@@ -3,6 +3,7 @@
 # Ported to JAX/Flax by Abdoul Majid O. Thiombiano
 import logging
 from dataclasses import dataclass
+from functools import partial
 from typing import Literal, Optional, Sequence, Tuple, Union
 
 import chex
@@ -10,7 +11,8 @@ import jax
 import jax.numpy as jnp
 from flax import nnx
 from flax.nnx.nn import dtypes
-from jax.sharding import Mesh
+
+from xlstm_jax.sharding import sLSTMCellShardingConfig
 
 from .src.vanilla import (
     slstm_forward,
@@ -121,10 +123,10 @@ class sLSTMCellBase(nnx.Module):
         self,
         config: sLSTMCellConfig,
         *,
-        mesh: Mesh,
         rngs: nnx.Rngs,
         dtype=jnp.bfloat16,
         param_dtype=jnp.float32,
+        shardings=sLSTMCellShardingConfig.get_default_sharding(),
     ):
         # Check configuration validity
         if config.hidden_size % config.num_heads != 0:
@@ -133,7 +135,6 @@ class sLSTMCellBase(nnx.Module):
             )
 
         head_dim = config.hidden_size // config.num_heads
-        self.mesh = mesh
 
         self.num_heads = config.num_heads
         self.hidden_size = config.hidden_size
@@ -153,30 +154,32 @@ class sLSTMCellBase(nnx.Module):
         # Initialize recurrent kernel
         kernel_init = nnx.with_partitioning(
             self._initialize_recurrent_kernel(),
-            sharding=(None, None, None, "tp"),
-            mesh=mesh,
+            sharding=shardings.recurrent_kernel,
         )
 
-        self._recurrent_kernel_ = nnx.Param(
-            kernel_init(
-                rngs.params(),
-                (config.num_heads, head_dim, config.num_gates, head_dim),
-                param_dtype,
+        self._recurrent_kernel_ = nnx.data(
+            nnx.Param(
+                kernel_init(
+                    rngs.params(),
+                    (config.num_heads, head_dim, config.num_gates, head_dim),
+                    param_dtype,
+                )
             )
         )
 
         # Initialize bias
         bias_init = nnx.with_partitioning(
             self._initialize_bias(),
-            sharding=(None, None, "tp"),
-            mesh=mesh,
+            sharding=shardings.recurrent_bias,
         )
 
-        self._bias_ = nnx.Param(
-            bias_init(
-                rngs.params(),
-                (config.num_heads, config.num_gates, head_dim),
-                param_dtype,
+        self._bias_ = nnx.data(
+            nnx.Param(
+                bias_init(
+                    rngs.params(),
+                    (config.num_heads, config.num_gates, head_dim),
+                    param_dtype,
+                )
             )
         )
 
@@ -348,14 +351,14 @@ class sLSTMCell_vanilla(sLSTMCellBase):
     def __init__(
         self,
         config: sLSTMCellConfig,
-        mesh: Mesh,
         rngs: nnx.Rngs,
         dtype=jnp.bfloat16,
         param_dtype=jnp.float32,
+        shardings=sLSTMCellShardingConfig.get_default_sharding(),
     ):
         super().__init__(
             config,
-            mesh=mesh,
+            shardings=shardings,
             rngs=rngs,
             dtype=dtype,
             param_dtype=param_dtype,
@@ -412,6 +415,7 @@ class sLSTMCell_vanilla(sLSTMCellBase):
             (1, 0, 2),
         )
 
+    @partial(jax.profiler.annotate_function, name="sLSTMCell")
     def _impl(self, input: jax.Array, state: jax.Array) -> jax.Array:
         """Implementation of forward pass for full sequence."""
         # Convert internal parameters to formats expected by slstm_forward
@@ -423,17 +427,12 @@ class sLSTMCell_vanilla(sLSTMCellBase):
             dtype=self.dtype,
         )
 
-        # with self.mesh:
-        #     input = jax.lax.with_sharding_constraint(input, P(None, "dp", None))
-        #     state = jax.lax.with_sharding_constraint(state, P(None, "dp", "tp"))
-
         return slstm_forward(
             input,
             state,
             rk_internal,
             bias_internal,
             self.pointwise,
-            mesh=self.mesh,
         )[0]
 
     def _impl_step(self, input: jax.Array, state: jax.Array) -> jax.Array:
@@ -458,16 +457,16 @@ class sLSTMCell(nnx.Module):
     def __new__(
         cls,
         config: sLSTMCellConfig,
-        mesh: Mesh,
         rngs: nnx.Rngs,
         dtype=jnp.bfloat16,
         param_dtype=jnp.float32,
+        shardings=sLSTMCellShardingConfig.get_default_sharding(),
     ):
         # Override config to ensure vanilla backend
         config.backend = "vanilla"
         return sLSTMCell_vanilla(
             config,
-            mesh=mesh,
+            shardings=shardings,
             rngs=rngs,
             dtype=dtype,
             param_dtype=param_dtype,

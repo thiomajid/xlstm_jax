@@ -2,13 +2,19 @@
 # Maximilian Beck
 # Ported to JAX/Flax by Abdoul Majid O. Thiombiano
 from dataclasses import dataclass
+from functools import partial
 from typing import Optional
 
 import jax
 import jax.numpy as jnp
 from flax import nnx
 
-from ..components.feedforward import FeedForwardConfig, create_feedforward
+from xlstm_jax.sharding import xLSTMBlockShardingConfig
+
+from ..components.feedforward import (
+    FeedForwardConfig,
+    create_feedforward,
+)
 from ..components.ln import LayerNorm
 from .mlstm.layer import mLSTMLayer, mLSTMLayerConfig
 from .slstm.layer import sLSTMLayer, sLSTMLayerConfig
@@ -62,8 +68,8 @@ class xLSTMBlock(nnx.Module):
         self,
         config: xLSTMBlockConfig,
         *,
-        mesh: jax.sharding.Mesh,
         rngs: nnx.Rngs,
+        shardings: xLSTMBlockShardingConfig,
         dtype=jnp.bfloat16,
         param_dtype=jnp.float32,
     ):
@@ -84,7 +90,6 @@ class xLSTMBlock(nnx.Module):
             use_scale=True,
             use_bias=False,
             rngs=rngs,
-            mesh=mesh,
             dtype=dtype,
             param_dtype=param_dtype,
         )
@@ -92,8 +97,8 @@ class xLSTMBlock(nnx.Module):
         if config.mlstm is not None:
             self.xlstm = mLSTMLayer(
                 config=config.mlstm,
-                mesh=mesh,
                 rngs=rngs,
+                shardings=shardings.xlstm,
                 dtype=dtype,
                 param_dtype=param_dtype,
             )
@@ -101,8 +106,8 @@ class xLSTMBlock(nnx.Module):
         elif config.slstm is not None:
             self.xlstm = sLSTMLayer(
                 config=config.slstm,
-                mesh=mesh,
                 rngs=rngs,
+                shardings=shardings.xlstm,
                 dtype=dtype,
                 param_dtype=param_dtype,
             )
@@ -114,7 +119,6 @@ class xLSTMBlock(nnx.Module):
                 num_features=config.feedforward.embedding_dim,
                 use_scale=True,
                 use_bias=False,
-                mesh=mesh,
                 rngs=rngs,
                 dtype=dtype,
                 param_dtype=param_dtype,
@@ -122,8 +126,8 @@ class xLSTMBlock(nnx.Module):
 
             self.ffn = create_feedforward(
                 config=config.feedforward,
-                mesh=mesh,
                 rngs=rngs,
+                shardings=shardings.ffn,
                 dtype=dtype,
                 param_dtype=param_dtype,
             )
@@ -131,6 +135,7 @@ class xLSTMBlock(nnx.Module):
             self.ffn_norm = None
             self.ffn = None
 
+    @partial(jax.profiler.annotate_function, name="xLSTMBlock")
     def __call__(self, x: jax.Array):
         x_normed = self.xlstm_norm(x)
         x_xlstm = self.xlstm(x_normed)

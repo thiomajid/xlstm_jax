@@ -1,9 +1,9 @@
 # Copyright (c) NXAI GmbH and its affiliates 2024
 # Maximilian Beck, Korbinian Pöppel
 # Ported to JAX/Flax by Abdoul Majid O. Thiombiano
-import functools
 import math
 import typing as tp
+from functools import partial
 
 import chex
 import jax
@@ -11,7 +11,8 @@ import jax.numpy as jnp
 from jax import lax
 
 
-@functools.partial(
+@partial(jax.profiler.annotate_function, name="parallel_stabilized_simple")
+@partial(
     jax.jit,
     static_argnames=("stabilize_rowwise", "eps"),
 )
@@ -120,7 +121,7 @@ def parallel_stabilized_simple(
     return h_tilde_state
 
 
-@functools.partial(jax.jit, static_argnames=("eps",))
+@partial(jax.jit, static_argnames=("eps",))
 def recurrent_step_stabilized_simple(
     c_state: jax.Array,  # (B, NH, DH, DH)
     n_state: jax.Array,  # (B, NH, DH, 1)
@@ -192,7 +193,8 @@ def recurrent_step_stabilized_simple(
     return h, (c_state_new, n_state_new, m_state_new)
 
 
-@functools.partial(
+@partial(jax.profiler.annotate_function, name="chunkwise_simple")
+@partial(
     jax.jit,
     static_argnames=("chunk_size", "return_last_state", "eps"),
 )

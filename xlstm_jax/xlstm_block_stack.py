@@ -3,11 +3,14 @@
 # Ported to JAX/Flax by Abdoul Majid O. Thiombiano
 from copy import deepcopy
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Literal, Optional, Union
 
 import jax
 import jax.numpy as jnp
 from flax import nnx
+
+from xlstm_jax.sharding import xLSTMBlockStackShardingConfig
 
 from .blocks.mlstm.block import mLSTMBlock, mLSTMBlockConfig
 from .blocks.slstm.block import sLSTMBlock, sLSTMBlockConfig
@@ -80,10 +83,10 @@ class xLSTMBlockStackConfig:
 
 def _create_blocks(
     config: xLSTMBlockStackConfig,
-    mesh: jax.sharding.Mesh,
     rngs: nnx.Rngs,
     dtype=jnp.bfloat16,
     param_dtype=jnp.float32,
+    shardings=xLSTMBlockStackShardingConfig.get_default_sharding(),
 ):
     if len(config.slstm_at) == 0:  # only mLSTM blocks
 
@@ -92,16 +95,16 @@ def _create_blocks(
             return mLSTMBlock(
                 config=config.mlstm_block,
                 rngs=rngs,
-                mesh=mesh,
                 dtype=dtype,
                 param_dtype=param_dtype,
+                shardings=shardings.mlstm,
             )
 
         return _mBlocks(rngs.fork(split=config.num_blocks))
 
     # only sLSTM blocks
     if len(config.slstm_at) == config.num_blocks or config.slstm_at == "all":
-        blocks: list[sLSTMBlock] = []
+        blocks: nnx.List[sLSTMBlock] = nnx.List()
 
         for block_idx, block_type_int in enumerate(config.block_map):
             block_config = deepcopy(config.slstm_block)
@@ -112,9 +115,9 @@ def _create_blocks(
                 sLSTMBlock(
                     config=block_config,
                     rngs=rngs,
-                    mesh=mesh,
                     dtype=dtype,
                     param_dtype=param_dtype,
+                    shardings=shardings.slstm,
                 )
             )
 
@@ -142,7 +145,7 @@ def _create_blocks(
         return stacked_block
 
     # Mixed blocks case - return as tuple since they have different structures
-    blocks: list[mLSTMBlock | sLSTMBlock] = []
+    blocks: nnx.List[mLSTMBlock | sLSTMBlock] = nnx.List()
     for block_idx, block_type_int in enumerate(config.block_map):
         if block_type_int == 0:
             block_config = deepcopy(config.mlstm_block)
@@ -153,9 +156,9 @@ def _create_blocks(
                 mLSTMBlock(
                     config=block_config,
                     rngs=rngs,
-                    mesh=mesh,
                     dtype=dtype,
                     param_dtype=param_dtype,
+                    shardings=shardings.mlstm,
                 )
             )
 
@@ -168,16 +171,16 @@ def _create_blocks(
                 sLSTMBlock(
                     config=block_config,
                     rngs=rngs,
-                    mesh=mesh,
                     dtype=dtype,
                     param_dtype=param_dtype,
+                    shardings=shardings.slstm,
                 )
             )
 
         else:
             raise ValueError(f"Invalid block type {block_type_int}")
 
-    return tuple(blocks)
+    return blocks
 
 
 @nnx.scan(in_axes=(0, nnx.Carry), out_axes=(nnx.Carry, 0))
@@ -197,10 +200,10 @@ class xLSTMBlockStack(nnx.Module):
         self,
         config: xLSTMBlockStackConfig,
         *,
-        mesh: jax.sharding.Mesh,
         rngs: nnx.Rngs,
         dtype=jnp.bfloat16,
         param_dtype=jnp.float32,
+        shardings=xLSTMBlockStackShardingConfig.get_default_sharding(),
     ):
         self.num_blocks = config.num_blocks
         self.has_uniform_blocks = (
@@ -209,7 +212,7 @@ class xLSTMBlockStack(nnx.Module):
 
         self.blocks = _create_blocks(
             config=config,
-            mesh=mesh,
+            shardings=shardings,
             rngs=rngs,
             dtype=dtype,
             param_dtype=param_dtype,
@@ -219,7 +222,6 @@ class xLSTMBlockStack(nnx.Module):
             LayerNorm(
                 num_features=config.embedding_dim,
                 rngs=rngs,
-                mesh=mesh,
                 dtype=dtype,
                 param_dtype=param_dtype,
             )
@@ -227,6 +229,7 @@ class xLSTMBlockStack(nnx.Module):
             else jax.nn.identity
         )
 
+    @partial(jax.profiler.annotate_function, name="xLSTMBlockStack")
     def __call__(self, x: jax.Array):
         x_t = None
         h_t = None

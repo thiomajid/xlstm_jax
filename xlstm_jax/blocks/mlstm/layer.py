@@ -9,7 +9,9 @@ from typing import Optional
 import jax
 import jax.numpy as jnp
 from flax import nnx
-from flax.nnx.nn import dtypes
+from flax.nnx.nn import dtypes, initializers
+
+from xlstm_jax.sharding import mLSTMLayerShardingConfig
 
 from ...components.conv import CausalConv1d, CausalConv1dConfig
 from ...components.init import small_init_initializer, wang_initializer
@@ -47,10 +49,10 @@ class mLSTMLayer(nnx.Module):
         self,
         config: mLSTMLayerConfig,
         *,
-        mesh: jax.sharding.Mesh,
         rngs: nnx.Rngs,
         dtype=jnp.bfloat16,
         param_dtype=jnp.float32,
+        shardings=mLSTMLayerShardingConfig.get_default_sharding(),
     ):
         self.promote_dtype = dtypes.promote_dtype
         self.dtype = dtype
@@ -64,8 +66,7 @@ class mLSTMLayer(nnx.Module):
             param_dtype=param_dtype,
             bias_init=nnx.with_partitioning(
                 nnx.initializers.zeros_init(),
-                sharding=("tp",),
-                mesh=mesh,
+                sharding=shardings.bias,
             ),
         )
 
@@ -75,8 +76,7 @@ class mLSTMLayer(nnx.Module):
             out_features=2 * config._inner_embedding_dim,
             kernel_init=nnx.with_partitioning(
                 small_init_initializer(dim=config.embedding_dim),
-                sharding=(None, "tp"),
-                mesh=mesh,
+                sharding=shardings.up_proj,
             ),
         )
 
@@ -99,13 +99,11 @@ class mLSTMLayer(nnx.Module):
                 initializer=nnx.initializers.normal(
                     math.sqrt(2 / 5 / qkv_config.in_features)
                 ),
-                sharding=(None, None, "tp"),
-                mesh=mesh,
+                sharding=shardings.qkv_proj,
             ),
             bias_init=nnx.with_partitioning(
                 initializer=nnx.initializers.zeros_init(),
-                sharding=("tp",),
-                mesh=mesh,
+                sharding=shardings.bias,
             ),
         )
 
@@ -115,7 +113,6 @@ class mLSTMLayer(nnx.Module):
 
         # Convolutional layer
         self.conv1d = CausalConv1d(
-            mesh=mesh,
             rngs=rngs,
             dtype=dtype,
             param_dtype=param_dtype,
@@ -123,13 +120,21 @@ class mLSTMLayer(nnx.Module):
                 feature_dim=config._inner_embedding_dim,
                 kernel_size=config.conv1d_kernel_size,
             ),
+            kernel_init=nnx.with_partitioning(
+                initializers.lecun_normal(),
+                sharding=shardings.causal_conv.kernel,
+            ),
+            bias_init=nnx.with_partitioning(
+                initializers.zeros_init(),
+                sharding=shardings.causal_conv.bias,
+            ),
         )
 
         # mLSTM cell
         self.mlstm_cell = mLSTMCell(
-            mesh=mesh,
             rngs=rngs,
             dtype=dtype,
+            shardings=shardings.mlstm_cell,
             param_dtype=param_dtype,
             config=mLSTMCellConfig(
                 context_length=config.context_length,
@@ -145,8 +150,7 @@ class mLSTMLayer(nnx.Module):
             jnp.empty(config._inner_embedding_dim, dtype=param_dtype),
             init_fn=nnx.with_partitioning(
                 nnx.initializers.ones_init(),
-                sharding=("tp",),
-                mesh=mesh,
+                sharding=shardings.learnable_skip,
             ),
         )
 
@@ -159,13 +163,13 @@ class mLSTMLayer(nnx.Module):
                     dim=config.embedding_dim,
                     num_blocks=config._num_blocks,
                 ),
-                sharding=("tp", None),
-                mesh=mesh,
+                sharding=shardings.down_proj,
             ),
         )
 
         self.dropout = nnx.Dropout(rate=config.dropout, rngs=rngs)
 
+    @partial(jax.profiler.annotate_function, name="mLSTMLayer")
     def __call__(self, x: jax.Array):
         # Up-projection
         x_inner = self.proj_up(x)

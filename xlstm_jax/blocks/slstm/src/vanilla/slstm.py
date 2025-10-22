@@ -7,16 +7,15 @@ from functools import partial
 
 import jax
 import jax.numpy as jnp
-from jax.sharding import Mesh
 
 
-@partial(jax.jit, static_argnames=("mesh",))
+@partial(jax.profiler.annotate_function, name="slstm_forward_pointwise")
+@jax.jit
 def slstm_forward_pointwise(
     Wx: jax.Array,  # dim [B, 4*H]
     Ry: jax.Array,  # dim [B, 4*H]
     b: jax.Array,  # dim [1, 4*H]
     states: jax.Array,  # dim [4, B, H]
-    mesh: Mesh,
 ) -> tuple[
     jax.Array,
     jax.Array,

@@ -1,10 +1,12 @@
 # Copyright (c) NXAI GmbH and its affiliates 2024
 # Korbininan Pöppel
 # Ported to JAX/Flax by Abdoul Majid O. Thiombiano
-from typing import Callable
+from typing import Callable, Optional
 
 import jax
 from flax import nnx
+
+ShardingRule = tuple[Optional[str], ...]
 
 
 def round_to_multiple(n, m=8):
@@ -94,11 +96,3 @@ class ParameterProxy:
     def __getattr__(self, name: str):
         # Forward attribute access to the underlying array
         return getattr(getattr(self.module, self.parameter_name), name)
-
-
-class Identity(nnx.Module):
-    def __init__(self):
-        pass
-
-    def __call__(self, x: jax.Array):
-        return x

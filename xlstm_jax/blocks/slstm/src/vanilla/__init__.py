@@ -18,9 +18,10 @@ slstm_pointwise_function_registry: dict[str, Callable] = {
 }
 
 
+@functools.partial(jax.profiler.annotate_function, name="slstm_forward")
 @functools.partial(
     jax.jit,
-    static_argnames=("pointwise_forward", "mesh"),
+    static_argnames=("pointwise_forward"),
 )
 def slstm_forward(
     x: jax.Array,  # [S, B, G*I]
@@ -31,7 +32,6 @@ def slstm_forward(
         [jax.Array, jax.Array, jax.Array, jax.Array],
         tuple[jax.Array, jax.Array],
     ],
-    mesh: jax.sharding.Mesh,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
     """
     Forward pass for sLSTM over a full sequence.
@@ -93,7 +93,6 @@ def slstm_forward(
             Ry_reshaped,
             b,
             current_states,
-            mesh=mesh,
         )
 
         new_states = new_states.astype(current_states.dtype)

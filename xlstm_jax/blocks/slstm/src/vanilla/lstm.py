@@ -2,10 +2,13 @@
 # Korbininan Pöppel
 # Ported to JAX/Flax by Abdoul Majid O. Thiombiano
 
+from functools import partial
+
 import jax
 import jax.numpy as jnp
 
 
+@partial(jax.profiler.annotate_function, name="slstm_forward_pointwise_lstm")
 @jax.jit
 def slstm_forward_pointwise(
     Wx: jax.Array,  # dim [B, 4*H]

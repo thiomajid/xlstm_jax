@@ -9,6 +9,8 @@ import jax.numpy as jnp
 from einops import rearrange
 from flax import nnx
 
+from xlstm_jax.sharding import mLSTMCellShardingConfig
+
 from ...components.init import bias_linspace_initializer
 from ...components.ln import MultiHeadLayerNorm
 from .backends import parallel_stabilized_simple, recurrent_step_stabilized_simple
@@ -26,10 +28,10 @@ class mLSTMCell(nnx.Module):
         self,
         config: mLSTMCellConfig,
         *,
-        mesh: jax.sharding.Mesh,
         rngs: nnx.Rngs,
         dtype=jnp.bfloat16,
         param_dtype=jnp.float32,
+        shardings=mLSTMCellShardingConfig.get_default_sharding(),
     ):
         # Store configuration parameters for easier access
         self.context_length = config.context_length
@@ -50,8 +52,7 @@ class mLSTMCell(nnx.Module):
             param_dtype=param_dtype,
             kernel_init=nnx.with_partitioning(
                 nnx.initializers.zeros_init(),
-                sharding=(None, "tp"),
-                mesh=mesh,
+                sharding=shardings.gate_kernel,
             ),
         )
 
@@ -59,16 +60,14 @@ class mLSTMCell(nnx.Module):
         self.igate = Linear(
             bias_init=nnx.with_partitioning(
                 nnx.initializers.normal(stddev=0.1, dtype=dtype),
-                sharding=("tp",),
-                mesh=mesh,
+                sharding=shardings.gate_bias,
             ),
         )
 
         self.fgate = Linear(
             bias_init=nnx.with_partitioning(
                 bias_linspace_initializer(start=3.0, end=6.0),
-                sharding=("tp",),
-                mesh=mesh,
+                sharding=shardings.gate_bias,
             ),
         )
 
@@ -82,13 +81,11 @@ class mLSTMCell(nnx.Module):
             param_dtype=param_dtype,
             scale_init=nnx.with_partitioning(
                 nnx.initializers.ones_init(),
-                sharding=("tp",),
-                mesh=mesh,
+                sharding=shardings.norm,
             ),
             bias_init=nnx.with_partitioning(
                 nnx.initializers.zeros_init(),
-                sharding=("tp",),
-                mesh=mesh,
+                sharding=shardings.norm,
             ),
         )
 
@@ -104,6 +101,7 @@ class mLSTMCell(nnx.Module):
     def _split_heads(self, el: jax.Array):
         return rearrange(el, "b s (nh hd) -> b nh s hd", nh=self.num_heads)
 
+    @partial(jax.profiler.annotate_function, name="mLSTMCell")
     def __call__(self, q: jax.Array, k: jax.Array, v: jax.Array) -> jax.Array:
         B, S, _ = q.shape  # (B, S, H)
 

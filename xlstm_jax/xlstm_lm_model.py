@@ -10,6 +10,7 @@ from flax import nnx
 from flax.nnx.nn.linear import default_embed_init
 
 from xlstm_jax.inference import GenerationMixin
+from xlstm_jax.sharding import xLSTMLMModelShardingConfig
 
 from .components.init import small_init_initializer
 from .xlstm_block_stack import xLSTMBlockStack, xLSTMBlockStackConfig
@@ -39,10 +40,10 @@ class xLSTMLMModel(nnx.Module, GenerationMixin):
         self,
         config: xLSTMLMModelConfig,
         *,
-        mesh: jax.sharding.Mesh,
         rngs: nnx.Rngs,
         dtype=jnp.bfloat16,
         param_dtype=jnp.float32,
+        shardings=xLSTMLMModelShardingConfig.get_default_sharding(),
     ):
         super().__init__()
 
@@ -53,10 +54,10 @@ class xLSTMLMModel(nnx.Module, GenerationMixin):
 
         self.xlstm_block_stack = xLSTMBlockStack(
             config=config,
-            mesh=mesh,
             rngs=rngs,
             dtype=dtype,
             param_dtype=param_dtype,
+            shardings=shardings.blocks,
         )
 
         self.token_embedding = nnx.Embed(
@@ -67,8 +68,7 @@ class xLSTMLMModel(nnx.Module, GenerationMixin):
             param_dtype=param_dtype,
             embedding_init=nnx.with_partitioning(
                 default_embed_init,
-                sharding=(None, "tp"),
-                mesh=mesh,
+                sharding=shardings.embedding,
             ),
         )
 
@@ -87,8 +87,7 @@ class xLSTMLMModel(nnx.Module, GenerationMixin):
             param_dtype=param_dtype,
             kernel_init=nnx.with_partitioning(
                 nnx.initializers.lecun_normal(),
-                sharding=(None, "tp"),
-                mesh=mesh,
+                sharding=shardings.lm_head,
             ),
         )
 
@@ -103,8 +102,7 @@ class xLSTMLMModel(nnx.Module, GenerationMixin):
                         shape=(config.vocab_size, config.embedding_dim),
                         dtype=param_dtype,
                     ),
-                    sharding=(None, "tp"),
-                    mesh=mesh,
+                    sharding=shardings.embedding,
                 ),
             )
 

@@ -8,7 +8,8 @@ from typing import Callable, Literal
 import jax
 import jax.numpy as jnp
 from flax import nnx
-from jax.sharding import Mesh
+
+from xlstm_jax.sharding import FeedForwardShardingConfig
 
 from ..utils import UpProjConfigMixin
 from .init import small_init_initializer, wang_initializer
@@ -58,10 +59,10 @@ class GatedFeedForward(nnx.Module):
         self,
         config: FeedForwardConfig,
         *,
-        mesh: Mesh,
         rngs: nnx.Rngs,
         dtype=jnp.bfloat16,
         param_dtype=jnp.float32,
+        shardings=FeedForwardShardingConfig.get_default_sharding(),
     ):
         self.proj_up_dim = config._proj_up_dim
 
@@ -73,8 +74,7 @@ class GatedFeedForward(nnx.Module):
             param_dtype=param_dtype,
             bias_init=nnx.with_partitioning(
                 nnx.initializers.zeros_init(),
-                sharding=("tp",),
-                mesh=mesh,
+                sharding=shardings.bias,
             ),
         )
 
@@ -84,8 +84,7 @@ class GatedFeedForward(nnx.Module):
             out_features=2 * config._proj_up_dim,
             kernel_init=nnx.with_partitioning(
                 small_init_initializer(dim=config.embedding_dim),
-                sharding=(None, "tp"),
-                mesh=mesh,
+                sharding=shardings.up_proj,
             ),
         )
 
@@ -94,23 +93,23 @@ class GatedFeedForward(nnx.Module):
             out_features=config.embedding_dim,
             kernel_init=nnx.with_partitioning(
                 wang_initializer(
-                    dim=config.embedding_dim, num_blocks=config._num_blocks
+                    dim=config.embedding_dim,
+                    num_blocks=config._num_blocks,
                 ),
-                sharding=(None, "tp"),
-                mesh=mesh,
+                sharding=shardings.down_proj,
             ),
         )
 
         self.act_fn = get_act_fn(config.act_fn)
         self.dropout = nnx.Dropout(rate=config.dropout, rngs=rngs)
 
+    @partial(jax.profiler.annotate_function, name="GatedFeedForward")
     def __call__(self, x: jax.Array):
         # Project up and split into gate and activation path
         up_proj_output = self.proj_up(x)
         gate_preact, up_proj = jnp.split(
             up_proj_output,
             indices_or_sections=2,
-            # indices_or_sections=self.proj_up_dim,
             axis=-1,
         )
 
@@ -121,7 +120,7 @@ class GatedFeedForward(nnx.Module):
 
 def create_feedforward(
     config: FeedForwardConfig,
-    mesh: Mesh,
+    shardings: FeedForwardShardingConfig,
     rngs: nnx.Rngs,
     dtype=jnp.bfloat16,
     param_dtype=jnp.float32,
@@ -130,7 +129,7 @@ def create_feedforward(
     if config.ff_type == "ffn_gated":
         return GatedFeedForward(
             config,
-            mesh=mesh,
+            shardings=shardings,
             rngs=rngs,
             dtype=dtype,
             param_dtype=param_dtype,

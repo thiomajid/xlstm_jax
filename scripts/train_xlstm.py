@@ -143,7 +143,7 @@ def main(cfg: DictConfig):
 
     tokenizer = AutoTokenizer.from_pretrained(args.tokenizer, token=args.hub_token)
 
-    # Add padding token if needed
+    # Add padding token if missing
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
         logger.warning("Padding token set to EOS token.")

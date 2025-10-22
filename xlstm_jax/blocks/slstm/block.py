@@ -6,7 +6,8 @@ from typing import Optional
 
 import jax.numpy as jnp
 from flax import nnx
-from jax.sharding import Mesh
+
+from xlstm_jax.sharding import sLSTMBlockShardingConfig
 
 from ...components.feedforward import FeedForwardConfig
 from ..xlstm_block import xLSTMBlock, xLSTMBlockConfig
@@ -47,10 +48,10 @@ class sLSTMBlock(xLSTMBlock):
         self,
         config: sLSTMBlockConfig,
         *,
-        mesh: Mesh,
         rngs: nnx.Rngs,
         dtype=jnp.bfloat16,
         param_dtype=jnp.float32,
+        shardings=sLSTMBlockShardingConfig.get_default_sharding(),
     ):
         """Initialize an sLSTM block.
 
@@ -67,8 +68,8 @@ class sLSTMBlock(xLSTMBlock):
 
         super().__init__(
             config=xlstm_config,
-            mesh=mesh,
             rngs=rngs,
             dtype=dtype,
             param_dtype=param_dtype,
+            shardings=shardings,
         )

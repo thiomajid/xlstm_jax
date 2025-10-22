@@ -9,6 +9,9 @@ from functools import partial
 import jax
 import jax.numpy as jnp
 from flax import nnx
+from flax.nnx.nn import initializers
+
+from xlstm_jax.sharding import sLSTMLayerShardingConfig
 
 from ...components.conv import CausalConv1d, CausalConv1dConfig
 from ...components.linear_headwise import (
@@ -41,10 +44,10 @@ class sLSTMLayer(nnx.Module):
         self,
         config: sLSTMLayerConfig,
         *,
-        mesh: jax.sharding.Mesh,
         rngs: nnx.Rngs,
         dtype=jnp.bfloat16,
         param_dtype=jnp.float32,
+        shardings=sLSTMLayerShardingConfig.get_default_sharding(),
     ):
         self.conv1d_kernel_size = config.conv1d_kernel_size
 
@@ -52,12 +55,19 @@ class sLSTMLayer(nnx.Module):
         if config.conv1d_kernel_size > 0:
             self.conv1d = CausalConv1d(
                 rngs=rngs,
-                mesh=mesh,
                 dtype=dtype,
                 param_dtype=param_dtype,
                 config=CausalConv1dConfig(
                     feature_dim=config.embedding_dim,
                     kernel_size=config.conv1d_kernel_size,
+                ),
+                kernel_init=nnx.with_partitioning(
+                    initializers.lecun_normal(),
+                    sharding=shardings.causal_conv.kernel,
+                ),
+                bias_init=nnx.with_partitioning(
+                    initializers.zeros_init(),
+                    sharding=shardings.causal_conv.bias,
                 ),
             )
         else:
@@ -82,13 +92,7 @@ class sLSTMLayer(nnx.Module):
                 initializer=nnx.initializers.normal(
                     math.sqrt(2 / 5 / gate_config.in_features)
                 ),
-                sharding=(None, None, "tp"),
-                mesh=mesh,
-            ),
-            bias_init=nnx.with_partitioning(
-                initializer=nnx.initializers.zeros_init(),
-                sharding=("tp",),
-                mesh=mesh,
+                sharding=shardings.gate_kernel,
             ),
         )
 
@@ -100,10 +104,10 @@ class sLSTMLayer(nnx.Module):
         # sLSTM cell and normalization
         self.slstm_cell = sLSTMCell(
             config,
-            mesh=mesh,
             rngs=rngs,
             dtype=dtype,
             param_dtype=param_dtype,
+            shardings=shardings.slstm_cell,
         )
 
         self.group_norm = MultiHeadLayerNorm(
@@ -114,18 +118,17 @@ class sLSTMLayer(nnx.Module):
             param_dtype=param_dtype,
             scale_init=nnx.with_partitioning(
                 nnx.initializers.ones_init(),
-                sharding=("tp",),
-                mesh=mesh,
+                sharding=shardings.norm,
             ),
             bias_init=nnx.with_partitioning(
                 nnx.initializers.zeros_init(),
-                sharding=("tp",),
-                mesh=mesh,
+                sharding=shardings.norm,
             ),
         )
 
         self.dropout = nnx.Dropout(rate=config.dropout, rngs=rngs)
 
+    @partial(jax.profiler.annotate_function, name="sLSTMLayer")
     def __call__(
         self,
         x: jax.Array,

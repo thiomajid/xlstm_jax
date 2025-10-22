@@ -2,6 +2,7 @@
 # Maximilian Beck, Korbininan Pöppel
 # Ported to JAX/Flax by Abdoul Majid O. Thiombiano
 from dataclasses import dataclass
+from functools import partial
 
 import jax
 import jax.numpy as jnp
@@ -77,6 +78,7 @@ class LinearHeadwiseExpand(nnx.Module):
         else:
             self.bias = None
 
+    @partial(jax.profiler.annotate_function, name="LinearHeadwiseExpand")
     def __call__(self, x: jax.Array) -> jax.Array:
         shape = x.shape
         x = x.reshape(*shape[:-1], self.num_heads, -1)

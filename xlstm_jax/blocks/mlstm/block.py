@@ -4,9 +4,10 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
-import jax
 import jax.numpy as jnp
 from flax import nnx
+
+from xlstm_jax.sharding import mLSTMBlockShardingConfig
 
 from ..xlstm_block import xLSTMBlock, xLSTMBlockConfig
 from .layer import mLSTMLayerConfig
@@ -37,10 +38,10 @@ class mLSTMBlock(xLSTMBlock):
         self,
         config: mLSTMBlockConfig,
         *,
-        mesh: jax.sharding.Mesh,
         rngs: nnx.Rngs,
         dtype=jnp.bfloat16,
         param_dtype=jnp.float32,
+        shardings=mLSTMBlockShardingConfig.get_default_sharding(),
     ) -> None:
         """Initialize an mLSTM block.
 
@@ -59,7 +60,7 @@ class mLSTMBlock(xLSTMBlock):
         # Initialize using the parent class constructor
         super().__init__(
             config=xlstm_config,
-            mesh=mesh,
+            shardings=shardings,
             rngs=rngs,
             dtype=dtype,
             param_dtype=param_dtype,

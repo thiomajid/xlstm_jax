@@ -17,7 +17,6 @@ from jax.sharding import Mesh
 
 def LayerNorm(
     num_features: int,
-    mesh: Mesh,
     rngs: nnx.Rngs,
     use_scale: bool = True,
     use_bias: bool = False,
@@ -36,12 +35,10 @@ def LayerNorm(
         scale_init=nnx.with_partitioning(
             nnx.initializers.ones_init(),
             sharding=("tp",),
-            mesh=mesh,
         ),
         bias_init=nnx.with_partitioning(
             nnx.initializers.zeros_init(),
             sharding=("tp",),
-            mesh=mesh,
         ),
     )
 

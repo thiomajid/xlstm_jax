@@ -3,11 +3,12 @@
 # Ported to JAX/Flax by Abdoul Majid O. Thiombiano
 import typing as tp
 from dataclasses import dataclass
+from functools import partial
 
 import jax
 import jax.numpy as jnp
 from flax import nnx
-from jax.sharding import Mesh
+from flax.nnx.nn import initializers
 
 
 @dataclass(unsafe_hash=True, order=True)
@@ -43,10 +44,11 @@ class CausalConv1d(nnx.Module):
         self,
         config: CausalConv1dConfig,
         *,
-        mesh: Mesh,
         rngs: nnx.Rngs,
         dtype=jnp.bfloat16,
         param_dtype=jnp.float32,
+        kernel_init=initializers.lecun_normal(),
+        bias_init=initializers.zeros_init(),
     ):
         self.groups = config.feature_dim
         self.kernel_size = config.kernel_size
@@ -69,21 +71,16 @@ class CausalConv1d(nnx.Module):
                 rngs=rngs,
                 dtype=dtype,
                 param_dtype=param_dtype,
-                kernel_init=nnx.with_partitioning(
-                    initializer=jax.nn.initializers.lecun_normal(),
-                    sharding=(None, None, "tp"),
-                    mesh=mesh,
-                ),
-                bias_init=nnx.with_partitioning(
-                    initializer=nnx.initializers.zeros_init(),
-                    sharding=("tp",),
-                    mesh=mesh,
-                ),
+                kernel_init=kernel_init,
+                bias_init=bias_init,
             )
 
+    @partial(jax.profiler.annotate_function, name="CausalConv1d")
     def __call__(self, x: jax.Array) -> jax.Array:
         if self.kernel_size > 0:
             y = self.conv(x)
-            y = y[:, :, -self.pad]
+            # slice over the time dimension not the feature one
+            y = y[:, : -self.pad, :]
+            return y
 
         return x
