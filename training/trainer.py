@@ -24,11 +24,11 @@ from training.utils.module import count_parameters
 _Batch = tuple[jax.Array, jax.Array]  # input_ids and labels
 
 _TrainStepFn = tp.Callable[
-    [nnx.Module, _Batch, nnx.Optimizer, nnx.MultiMetric],
+    [nnx.Module, _Batch, jax.Array, nnx.Optimizer, nnx.MultiMetric],
     tuple[jax.Array, chex.ArrayTree, jax.Array],
 ]
 
-_EvalStepFn = tp.Callable[[nnx.Module, _Batch, nnx.MultiMetric], jax.Array]
+_EvalStepFn = tp.Callable[[nnx.Module, _Batch, jax.Array, nnx.MultiMetric], jax.Array]
 
 
 class Trainer:
@@ -120,23 +120,29 @@ class Trainer:
             for batch in train_pbar:
                 self.state.current_step += 1  # Count every batch as a step
                 input_ids = jnp.array(batch["input_ids"])
+                attention_mask = jnp.array(batch["attention_mask"])
                 labels = jnp.array(batch["labels"], dtype=labels_dtype)
 
                 # Grain may add an additional batch dim
                 if input_ids.shape[0] == 1:
                     input_ids = input_ids.squeeze(0)
 
+                if attention_mask.shape[0] == 1:
+                    attention_mask = attention_mask.squeeze(0)
+
                 if labels.shape[0] == 1:
                     labels = labels.squeeze(0)
 
                 # Data placement
                 input_ids = jax.device_put(input_ids, self.data_sharding)
+                attention_mask = jax.device_put(attention_mask, self.data_sharding)
                 labels = jax.device_put(labels, self.data_sharding)
                 step_batch = (input_ids, labels)
 
                 loss, grads, grad_norm = self._train_step_fn(
                     self.model,
                     step_batch,
+                    attention_mask,
                     self.optimizer,
                     self.train_metrics,
                 )
@@ -200,20 +206,31 @@ class Trainer:
             for batch in eval_pbar:
                 eval_batch_count += 1
                 input_ids = jnp.array(batch["input_ids"])
+                attention_mask = jnp.array(batch["attention_mask"])
                 labels = jnp.array(batch["labels"], dtype=labels_dtype)
 
                 # Grain may add an additional batch dim
                 if input_ids.shape[0] == 1:
                     input_ids = input_ids.squeeze(0)
 
+                if attention_mask.shape[0] == 1:
+                    attention_mask = attention_mask.squeeze(0)
+
                 if labels.shape[0] == 1:
                     labels = labels.squeeze(0)
 
                 # Data placement
                 input_ids = jax.device_put(input_ids, self.data_sharding)
+                attention_mask = jax.device_put(attention_mask, self.data_sharding)
                 labels = jax.device_put(labels, self.data_sharding)
+
                 step_batch = (input_ids, labels)
-                self._eval_step_fn(self.model, step_batch, self.eval_metrics)
+                self._eval_step_fn(
+                    self.model,
+                    step_batch,
+                    attention_mask,
+                    self.eval_metrics,
+                )
 
                 self.logger.info(f"Processed {eval_batch_count} evaluation batches")
                 eval_end_time = perf_counter()

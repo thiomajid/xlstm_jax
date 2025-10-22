@@ -1,10 +1,11 @@
 import sys
 
+from xlstm_jax.sharding import xLSTMLMModelShardingConfig
+
 sys.path.append("../")
 
 import logging
 import typing as tp
-from functools import partial
 from pathlib import Path
 from pprint import pprint
 
@@ -17,7 +18,7 @@ import optax
 import orbax.checkpoint as ocp
 from flax import nnx
 from huggingface_hub import snapshot_download
-from jax.sharding import Mesh, NamedSharding
+from jax.sharding import NamedSharding
 from jax.sharding import PartitionSpec as P
 from omegaconf import DictConfig, OmegaConf
 from orbax.checkpoint import checkpoint_managers
@@ -35,20 +36,24 @@ from training.data_transformations import CollateForLanguageModeling
 from training.loss import causal_lm_loss
 from training.tensorboard import TensorBoardLogger
 from training.trainer import Trainer
-from training.utils.array import create_mesh, log_node_devices_stats
+from training.utils.array import log_node_devices_stats
 from training.utils.module import (
     count_parameters,
     load_sharded_checkpoint_state,
     str2dtype,
 )
-from xlstm_jax import xLSTMLMModel, xLSTMLMModelConfig
+from xlstm_jax import xLSTMLMModel
 from xlstm_jax.parser import parse_xlstm_config_dict
 
 
-def lm_loss(model: xLSTMLMModel, batch: tuple[jax.Array, jax.Array]):
+def lm_loss(
+    model: xLSTMLMModel,
+    batch: tuple[jax.Array, jax.Array],
+    attention_mask: jax.Array,
+):
     input_ids, labels = batch
     logits = model(input_ids)
-    loss = causal_lm_loss(logits, labels)
+    loss = causal_lm_loss(logits, labels, attention_mask=attention_mask)
     return loss
 
 
@@ -56,12 +61,13 @@ def lm_loss(model: xLSTMLMModel, batch: tuple[jax.Array, jax.Array]):
 def train_step(
     model: xLSTMLMModel,
     batch: tuple[jax.Array, jax.Array],
+    attention_mask: jax.Array,
     optimizer: nnx.Optimizer,
     metrics: nnx.MultiMetric,
 ):
     # with jax.debug_nans(True):
     grad_fn = nnx.value_and_grad(lm_loss)
-    loss, grads = grad_fn(model, batch)
+    loss, grads = grad_fn(model, batch, attention_mask)
 
     # Debugging NaNs
     # jax.debug.print("loss: {loss}", loss=loss)
@@ -88,38 +94,12 @@ def train_step(
 def eval_step(
     model: xLSTMLMModel,
     batch: tuple[jax.Array, jax.Array],
+    attention_mask: jax.Array,
     metrics: nnx.MultiMetric,
 ):
-    loss = lm_loss(model, batch)
+    loss = lm_loss(model, batch, attention_mask=attention_mask)
     metrics.update(loss=loss, perplexity=jnp.exp(loss))
     return loss
-
-
-@partial(
-    nnx.jit,
-    static_argnames=("config", "mesh", "dtype", "param_dtype"),
-)
-def _create_sharded_model(
-    config: xLSTMLMModelConfig,
-    rngs: nnx.Rngs,
-    mesh: Mesh,
-    dtype=jnp.bfloat16,
-    param_dtype=jnp.float32,
-):
-    model = xLSTMLMModel(
-        config,
-        mesh=mesh,
-        rngs=rngs,
-        dtype=dtype,
-        param_dtype=param_dtype,
-    )
-
-    state = nnx.state(model)
-    pspecs = nnx.get_partition_spec(state)
-    sharded_state = jax.lax.with_sharding_constraint(state, pspecs)
-    nnx.update(model, sharded_state)
-
-    return model
 
 
 @hydra.main(
@@ -162,7 +142,7 @@ def main(cfg: DictConfig):
 
     mesh_shape = tuple(args.mesh_shape)
     axis_names = tuple(args.axis_names)
-    mesh = create_mesh(mesh_shape=mesh_shape, axis_names=axis_names)
+    mesh = jax.make_mesh(mesh_shape, axis_names)
     rngs = nnx.Rngs(args.seed)
 
     model_config_dict = OmegaConf.to_container(cfg["model"], resolve=True)
@@ -170,18 +150,27 @@ def main(cfg: DictConfig):
     model_config_dict["pad_token_id"] = tokenizer.pad_token_id
 
     pprint(model_config_dict)
-
     config = parse_xlstm_config_dict(model_config_dict)  # ty: ignore
 
-    model: xLSTMLMModel
+    sharding_parser = HfArgumentParser(xLSTMLMModelShardingConfig)
+    shardings_dict = cfg.get("shardings", None)
+    shardings = None
 
-    with mesh:
-        model = _create_sharded_model(
-            config,
+    if shardings_dict is not None:
+        shardings = sharding_parser.parse_dict(
+            OmegaConf.to_container(shardings_dict, resolve=True)
+        )[0]
+        shardings = tp.cast(xLSTMLMModelShardingConfig, shardings)
+    else:
+        shardings = xLSTMLMModelShardingConfig.get_default_sharding()
+
+    with jax.set_mesh(mesh):
+        model = xLSTMLMModel(
+            config=config,
             rngs=rngs,
-            mesh=mesh,
             dtype=dtype,
             param_dtype=param_dtype,
+            shardings=shardings,
         )
 
     logger.info(f"Model parameters: {count_parameters(model)}")
@@ -223,7 +212,7 @@ def main(cfg: DictConfig):
     )
 
     # Create data transforms pipeline
-    TARGET_COLUMNS = ["input_ids"]
+    TARGET_COLUMNS = ["input_ids", "attention_mask"]
     train_transforms = [
         grain.Batch(batch_size=args.per_device_train_batch_size, drop_remainder=True),
         CollateForLanguageModeling(
@@ -315,7 +304,8 @@ def main(cfg: DictConfig):
         every_k_schedule=args.gradient_accumulation_steps,
     )
 
-    optimizer = nnx.Optimizer(model, optimizer_def, wrt=nnx.Param)  # ty: ignore
+    with jax.set_mesh(mesh):
+        optimizer = nnx.Optimizer(model, optimizer_def, wrt=nnx.Param)  # ty: ignore
 
     # Metrics
     train_metrics = nnx.MultiMetric(
